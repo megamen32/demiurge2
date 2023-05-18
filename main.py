@@ -13,16 +13,10 @@ import openai
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from aiogram.types import BotCommand
 import speech_recognition as sr
-API_TOKEN = '1605816914:AAG0B0LBzmuAyWnffjp13Ht_oB4Ipe7cGH0'
-OPENAI_API_KEY = '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'
-
-# Создайте экземпляры бота и диспетчера
-bot = Bot(token=API_TOKEN)
-storage = RedisStorage2()
-dp = Dispatcher(bot, storage=storage)
+from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, bot
 
 # Установите ваш ключ OpenAI
-openai.api_key=OPENAI_API_KEY
+openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
 MAX_HISTORY = 3
@@ -38,20 +32,26 @@ async def show_history(message: types.Message):
     m = await message.reply('...')
     try:
         user_id = message.from_user.id
-        user_data = await dp.storage.get_data(user=user_id)
-
-        if 'history' in user_data:
-            history = user_data['history']
-            history_text = ''
-            for msg in history:
-                role = 'Вы' if msg['role'] == 'user' else ASSISTANT_NAME_SHORT
-                history_text += f'{role}: {msg["content"]}\n'
-            await m.edit_text(text=history_text)
-        else:
-            await m.edit_text( text="История диалога пуста.")
+        text = await get_history(user_id)
+        await m.edit_text(text=text)
     except:
         traceback.print_exc()
         await m.edit_text('Не удалось получить ответ от Демиурга')
+
+
+async def get_history(user_id):
+    user_data = await dp.storage.get_data(user=user_id)
+    if 'history' in user_data:
+        history = user_data['history']
+        history_text = ''
+        for msg in history:
+            role = 'Вы' if msg['role'] == 'user' else ASSISTANT_NAME_SHORT
+            history_text += f'{role}: {msg["content"]}\n'
+        text = history_text
+    else:
+        text = None
+    return text
+
 
 @dp.message_handler(commands=['clear'])
 async def clear_history(message: types.Message):
@@ -73,19 +73,15 @@ async def summarize_history(message: types.Message):
     msg = await message.reply('...')
     try:
         user_id = message.from_user.id
-        user_data = await dp.storage.get_data(user=user_id)
-
-        if 'history' in user_data and user_data['history']:
-            history = user_data['history']
-            history_text = '\n'.join([f"{'Избранный' if msg['role'] == 'user' else ASSISTANT_NAME_SHORT}: {msg['content']}" for msg in history])
-
+        history_text = await get_history(user_id)
+        if history_text is not None:
             # Сформируйте запрос на суммирование к GPT-3.5
             chat_response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[{'role': 'system', 'content': f"Пожалуйста, суммируйте следующий текст:\n{history_text}"}]
             )
             summary = chat_response['choices'][0]['message']['content']
-
+            user_data = await dp.storage.get_data(user=user_id)
             # Замените историю диалога суммарным представлением
             user_data['history'] = [{"role": "assistant", "content": summary}]
             await dp.storage.set_data(user=user_id, data=user_data)
