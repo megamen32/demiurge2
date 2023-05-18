@@ -62,7 +62,7 @@ async def get_history(user_id):
         history = user_data['history']
         history_text = ''
         for msg in history:
-            role = 'Вы' if msg['role'] == 'user' else ASSISTANT_NAME_SHORT
+            role = 'Пользователь' if msg['role'] == 'user' else ASSISTANT_NAME_SHORT
             history_text += f'{role}: {msg["content"]}\n'
         text = history_text
     else:
@@ -89,15 +89,10 @@ async def clear_history(message: types.Message):
 async def summarize_history(message: types.Message):
     msg = await message.reply('...')
     try:
+
         user_id = message.chat.id
-        history_text = await get_history(user_id)
-        if history_text is not None:
-            # Сформируйте запрос на суммирование к GPT-3.5
-            chat_response = await openai.ChatCompletion.acreate(
-                model="gpt-3.5-turbo",
-                messages=[{'role': 'system', 'content': f"Пожалуйста, суммируйте следующий текст:\n{history_text}"}]
-            )
-            summary = chat_response['choices'][0]['message']['content']
+        summary = await get_summary( user_id)
+        if summary is not None:
             user_data = await dp.storage.get_data(chat=user_id)
             # Замените историю диалога суммарным представлением
             user_data['history'] = [{"role": "assistant", "content": summary}]
@@ -109,6 +104,18 @@ async def summarize_history(message: types.Message):
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
+
+
+async def get_summary( user_id):
+    history_text = await get_history(user_id)
+    if history_text is not None:
+        # Сформируйте запрос на суммирование к GPT-3.5
+        chat_response = await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",
+            messages=[{'role': 'system', 'content': f"Пожалуйста, суммируйте следующий текст:\n{history_text}"}]
+        )
+        summary = chat_response['choices'][0]['message']['content']
+    return summary
 
 
 @dp.message_handler(content_types=types.ContentType.VOICE)
@@ -165,7 +172,11 @@ async def handle_message(message: types.Message):
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}'})
 
         # Ограничьте историю MAX_HISTORY сообщениями
-        user_data['history'] = user_data['history'][-MAX_HISTORY:]
+        if len(user_data['history']) > MAX_HISTORY:
+            summary = await get_summary(user_id)
+            asyncio.create_task( message.answer('Короче:\n'+summary))
+            # Замените историю диалога суммарным представлением
+            user_data['history'] = [{"role": "assistant", "content": summary}]
 
         # Сформируйте ответ от GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
