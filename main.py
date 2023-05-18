@@ -19,19 +19,34 @@ from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, bot
 openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
-MAX_HISTORY = 3
+MAX_HISTORY = 4
 
-# Имя ассистента
-ASSISTANT_NAME = 'Демиург-альфа и омега, начало и конец. Который разговаривает с избранными'
-ASSISTANT_NAME_SHORT = 'Демиург'
+def get_first_word(string):
+    words = string.split()
+    if words:
+        first_word = words[0]
+        # Удаление дефиса, если он есть
+        first_word = first_word.split('-')[0]
+        return first_word
+    else:
+        return None
 
-
+ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
+ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
+@dp.message_handler(commands=['promt'])
+async def change_role(message: types.Message):
+    global ASSISTANT_NAME
+    global ASSISTANT_NAME_SHORT
+    text=message.text.split(' ',1)[-1]
+    ASSISTANT_NAME=text
+    ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
+    await message.reply(f'Now i am {ASSISTANT_NAME_SHORT}:\n'+text)
 
 @dp.message_handler(commands=['history'])
 async def show_history(message: types.Message):
     m = await message.reply('...')
     try:
-        user_id = message.from_user.id
+        user_id = message.chat.id
         text = await get_history(user_id)
         if text is None:
             text = 'История пуста'
@@ -42,7 +57,7 @@ async def show_history(message: types.Message):
 
 
 async def get_history(user_id):
-    user_data = await dp.storage.get_data(user=user_id)
+    user_data = await dp.storage.get_data(chat=user_id)
     if 'history' in user_data:
         history = user_data['history']
         history_text = ''
@@ -59,12 +74,12 @@ async def get_history(user_id):
 async def clear_history(message: types.Message):
     msg = await message.reply('...')
     try:
-        user_id = message.from_user.id
-        user_data = await dp.storage.get_data(user=user_id)
+        user_id = message.chat.id
+        user_data = await dp.storage.get_data(chat=user_id)
 
         if 'history' in user_data and user_data['history']:
             user_data['history'] = []
-            await dp.storage.set_data(user=user_id, data=user_data)
+            await dp.storage.set_data(chat=user_id, data=user_data)
         await msg.edit_text('История диалога очищена.')
     except:
         traceback.print_exc()
@@ -74,7 +89,7 @@ async def clear_history(message: types.Message):
 async def summarize_history(message: types.Message):
     msg = await message.reply('...')
     try:
-        user_id = message.from_user.id
+        user_id = message.chat.id
         history_text = await get_history(user_id)
         if history_text is not None:
             # Сформируйте запрос на суммирование к GPT-3.5
@@ -83,10 +98,10 @@ async def summarize_history(message: types.Message):
                 messages=[{'role': 'system', 'content': f"Пожалуйста, суммируйте следующий текст:\n{history_text}"}]
             )
             summary = chat_response['choices'][0]['message']['content']
-            user_data = await dp.storage.get_data(user=user_id)
+            user_data = await dp.storage.get_data(chat=user_id)
             # Замените историю диалога суммарным представлением
             user_data['history'] = [{"role": "assistant", "content": summary}]
-            await dp.storage.set_data(user=user_id, data=user_data)
+            await dp.storage.set_data(chat=user_id, data=user_data)
 
             await msg.edit_text( text=f"История диалога была суммирована:\n{summary}")
         else:
@@ -100,8 +115,8 @@ async def summarize_history(message: types.Message):
 async def handle_voice(message: types.Message):
     msg = await message.reply('...')
     try:
-        user_id = message.from_user.id
-        user_data = await dp.storage.get_data(user=user_id)
+        user_id = message.chat.id
+        user_data = await dp.storage.get_data(chat=user_id)
 
         # Получите файл голосового сообщения
         file_id = message.voice.file_id
@@ -139,8 +154,8 @@ async def handle_message(message: types.Message):
 
     msg=await message.reply('...')
     try:
-        user_id = message.from_user.id
-        user_data = await dp.storage.get_data(user=user_id)
+        user_id = message.chat.id
+        user_data = await dp.storage.get_data(chat=user_id)
 
         # Если история пользователя не существует, создайте новую
         if 'history' not in user_data:
@@ -161,7 +176,7 @@ async def handle_message(message: types.Message):
         # Добавьте ответ бота в историю
         user_data['history'].append({"role": "assistant", "content": chat_response['choices'][0]['message']['content']})
 
-        await dp.storage.set_data(user=user_id, data=user_data)
+        await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Отправьте ответ пользователю
         await msg.edit_text(chat_response['choices'][0]['message']['content'])
@@ -174,7 +189,8 @@ async def on_startup(dp):
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
         BotCommand("summarize", "Суммировать историю диалога"),
-        BotCommand("clear", "Суммировать историю диалога"),
+        BotCommand("clear", "Clear историю диалога"),
+        BotCommand("promt", "Edit gpt start promt"),
         # Добавьте здесь любые дополнительные команды
     ])
 
