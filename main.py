@@ -63,7 +63,7 @@ async def get_history(user_id):
         history = user_data['history']
         history_text = ''
         for msg in history:
-            role = 'Пользователь' if msg['role'] == 'user' else ASSISTANT_NAME_SHORT
+            role = 'Пользователь' if msg['role'] == 'user' else "Система"
             history_text += f'{role}: {msg["content"]}\n'
         text = history_text
     else:
