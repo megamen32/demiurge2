@@ -33,6 +33,8 @@ async def show_history(message: types.Message):
     try:
         user_id = message.from_user.id
         text = await get_history(user_id)
+        if text is None:
+            text = 'История пуста'
         await m.edit_text(text=text)
     except:
         traceback.print_exc()
