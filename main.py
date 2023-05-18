@@ -156,6 +156,52 @@ def recognize(file_id):
     os.remove(f'{file_id}.wav')
     return text
 
+@dp.edited_message_handler(content_types=types.ContentType.TEXT)
+async def handle_edited_message(message: types.Message):
+    try:
+        user_id = message.chat.id
+        user_data = await dp.storage.get_data(chat=user_id)
+
+        if 'history' not in user_data:
+            user_data['history'] = []
+
+        # Находим и заменяем отредактированное сообщение в истории
+
+        for msg in reversed(user_data['history']):
+            if msg['role'] == 'user' and 'message_id' in msg and msg['message_id'] == message.message_id:
+                msg['content'] = f"{message.from_user.full_name or message.from_user.username}:{message.text}"
+                break
+        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+        # Запрос к модели GPT-3.5 Turbo
+        chat_response = await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",
+            messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + history_for_openai
+        )
+
+        response_text = chat_response['choices'][0]['message']['content']
+
+        if ":" in response_text and len(response_text.split(":")[0].split()) < 5:
+            response_text = response_text.split(":", 1)[1].strip()
+
+        # Заменяем последний ответ модели на новый
+        for msg in reversed(user_data['history']):
+            if msg['role'] == 'assistant':
+                msg['content'] = response_text
+                break
+
+        await message.answer(response_text)
+
+        if count_tokens(user_data['history']) > MAX_HISTORY:
+            summary = await get_summary(user_id)
+            asyncio.create_task(message.answer('Короче:\n' + summary))
+            last_msg=user_data['history'][-2:]
+            user_data['history'] = [{"role": "assistant", "content": summary}]
+            user_data['history'].extend(last_msg)
+
+        await dp.storage.set_data(chat=user_id, data=user_data)
+    except:
+        traceback.print_exc()
+        await message.answer('Не удалось получить ответ от Демиурга')
 
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message):
@@ -171,11 +217,11 @@ async def handle_message(message: types.Message):
 
         # Добавьте сообщение пользователя в историю
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}'})
-
+        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         # Сформируйте ответ от GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + user_data['history']
+            messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + history_for_openai
         )
 
         # Добавьте ответ бота в историю
@@ -183,7 +229,8 @@ async def handle_message(message: types.Message):
 
         while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
             response_text = response_text.split(":", 1)[1].strip()
-        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}"})
+        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': message.message_id})
+
 
         # Отправьте ответ пользователю
         await msg.edit_text(response_text)
