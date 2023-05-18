@@ -183,7 +183,7 @@ async def handle_message(message: types.Message):
 
         # Отправьте ответ пользователю
         await msg.edit_text(chat_response['choices'][0]['message']['content'])
-        await dp.storage.set_data(chat=user_id, data=user_data)
+        #await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Ограничьте историю MAX_HISTORY сообщениями
         if count_tokens(user_data['history']) > MAX_HISTORY:
@@ -194,7 +194,7 @@ async def handle_message(message: types.Message):
             user_data['history'] = [{"role": "assistant", "content": summary}]
             user_data['history'].extend(last_msg)
 
-            await dp.storage.set_data(chat=user_id, data=user_data)
+        await dp.storage.set_data(chat=user_id, data=user_data)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
