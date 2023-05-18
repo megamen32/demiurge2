@@ -206,7 +206,7 @@ def count_tokens(history):
     c = 0
     for msg in history:
         if re.search("[а-яА-Я]", msg['content']):  # Если содержит русские буквы
-            c += len(msg['content'].split()) * 4  # Оценка количества токенов
+            c += len(msg['content'].split()) * 3  # Оценка количества токенов
         else:  # Для английского и других языков
             c += len(msg['content'].split())
     return c
