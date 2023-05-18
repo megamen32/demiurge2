@@ -64,7 +64,7 @@ async def get_history(user_id):
         history_text = ''
         for msg in history:
             role = 'Пользователь' if msg['role'] == 'user' else "Система"
-            history_text += f'{role}: {msg["content"]}\n'
+            history_text += f'{msg["content"]}\n'
         text = history_text
     else:
         text = None
@@ -179,10 +179,14 @@ async def handle_message(message: types.Message):
         )
 
         # Добавьте ответ бота в историю
-        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{chat_response['choices'][0]['message']['content']}"})
+        response_text = chat_response['choices'][0]['message']['content']
+
+        while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
+            response_text = response_text.split(":", 1)[1].strip()
+        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}"})
 
         # Отправьте ответ пользователю
-        await msg.edit_text(chat_response['choices'][0]['message']['content'])
+        await msg.edit_text(response_text)
         #await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Ограничьте историю MAX_HISTORY сообщениями
