@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import traceback
 
 from aiogram import Bot, types, Dispatcher, executor
@@ -19,7 +20,7 @@ from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, bot
 openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
-MAX_HISTORY = 5
+MAX_HISTORY = 2048
 
 def get_first_word(string):
     words = string.split()
@@ -182,18 +183,29 @@ async def handle_message(message: types.Message):
 
         # Отправьте ответ пользователю
         await msg.edit_text(chat_response['choices'][0]['message']['content'])
+        await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Ограничьте историю MAX_HISTORY сообщениями
-        if len(user_data['history']) > MAX_HISTORY:
+        if count_tokens(user_data['history']) > MAX_HISTORY:
             summary = await get_summary(user_id)
             asyncio.create_task(message.answer('Короче:\n' + summary))
             # Замените историю диалога суммарным представлением
-            user_data['history'] = [{"role": "assistant", "content": summary},user_data['history'][-2:]]
+            last_msg=user_data['history'][-2:]
+            user_data['history'] = [{"role": "assistant", "content": summary}]
+            user_data['history'].extend(last_msg)
 
-        await dp.storage.set_data(chat=user_id, data=user_data)
+            await dp.storage.set_data(chat=user_id, data=user_data)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
+def count_tokens(history):
+    c = 0
+    for msg in history:
+        if re.search("[а-яА-Я]", msg['content']):  # Если содержит русские буквы
+            c += len(msg['content'].split()) * 4  # Оценка количества токенов
+        else:  # Для английского и других языков
+            c += len(msg['content'].split())
+    return c
 
 async def on_startup(dp):
     # Установите здесь ваши команды
