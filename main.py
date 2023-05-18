@@ -162,7 +162,7 @@ async def handle_message(message: types.Message):
             user_data['history'] = []
 
         # Добавьте сообщение пользователя в историю
-        user_data['history'].append({"role": "user", "content": message.text})
+        user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}'})
 
         # Ограничьте историю MAX_HISTORY сообщениями
         user_data['history'] = user_data['history'][-MAX_HISTORY:]
