@@ -170,11 +170,11 @@ async def handle_message(message: types.Message):
         # Сформируйте ответ от GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=[{'role': 'assistant', 'content': ASSISTANT_NAME}] + user_data['history']
+            messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + user_data['history']
         )
 
         # Добавьте ответ бота в историю
-        user_data['history'].append({"role": "assistant", "content": chat_response['choices'][0]['message']['content']})
+        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{chat_response['choices'][0]['message']['content']}"})
 
         await dp.storage.set_data(chat=user_id, data=user_data)
 
