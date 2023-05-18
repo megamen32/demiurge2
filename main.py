@@ -19,7 +19,7 @@ from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, bot
 openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
-MAX_HISTORY = 4
+MAX_HISTORY = 5
 
 def get_first_word(string):
     words = string.split()
@@ -188,7 +188,7 @@ async def handle_message(message: types.Message):
             summary = await get_summary(user_id)
             asyncio.create_task(message.answer('Короче:\n' + summary))
             # Замените историю диалога суммарным представлением
-            user_data['history'] = [{"role": "assistant", "content": summary}]
+            user_data['history'] = [{"role": "assistant", "content": summary},user_data['history'][-2:]]
 
         await dp.storage.set_data(chat=user_id, data=user_data)
     except:
