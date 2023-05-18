@@ -184,12 +184,14 @@ async def handle_edited_message(message: types.Message):
             response_text = response_text.split(":", 1)[1].strip()
 
         # Заменяем последний ответ модели на новый
+        msg_id=None
         for msg in reversed(user_data['history']):
             if msg['role'] == 'assistant':
                 msg['content'] = response_text
+                msg_id=msg['message_id']
                 break
 
-        await message.answer(response_text)
+        await bot.edit_message_text(response_text,message.chat.id,msg_id)
 
         if count_tokens(user_data['history']) > MAX_HISTORY:
             summary = await get_summary(user_id)
@@ -216,7 +218,7 @@ async def handle_message(message: types.Message):
             user_data['history'] = []
 
         # Добавьте сообщение пользователя в историю
-        user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}'})
+        user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         # Сформируйте ответ от GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
@@ -229,7 +231,7 @@ async def handle_message(message: types.Message):
 
         while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
             response_text = response_text.split(":", 1)[1].strip()
-        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': message.message_id})
+        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': msg.message_id})
 
 
         # Отправьте ответ пользователю
