@@ -88,9 +88,9 @@ async def summarize_history(message: types.Message):
             user_data['history'] = [{"role": "assistant", "content": summary}]
             await dp.storage.set_data(user=user_id, data=user_data)
 
-            await bot.send_message(chat_id=message.chat.id, text=f"История диалога была суммирована:\n{summary}")
+            await msg.edit_text( text=f"История диалога была суммирована:\n{summary}")
         else:
-            await bot.send_message(chat_id=message.chat.id, text="История диалога пуста.")
+            await msg.edit_text( text="История диалога пуста.")
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
@@ -107,7 +107,7 @@ async def handle_voice(message: types.Message):
         file_id = message.voice.file_id
         file = await bot.get_file(file_id)
         file_path = file.file_path
-        file_url = f"https://api.telegram.org/file/bot{API_TOKEN}/{file_path}"
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
 
         # Скачайте аудиофайл
         await bot.download_file(file_path, destination=f"{file_id}.ogg")
