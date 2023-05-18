@@ -171,13 +171,6 @@ async def handle_message(message: types.Message):
         # Добавьте сообщение пользователя в историю
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}'})
 
-        # Ограничьте историю MAX_HISTORY сообщениями
-        if len(user_data['history']) > MAX_HISTORY:
-            summary = await get_summary(user_id)
-            asyncio.create_task( message.answer('Короче:\n'+summary))
-            # Замените историю диалога суммарным представлением
-            user_data['history'] = [{"role": "assistant", "content": summary}]
-
         # Сформируйте ответ от GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
@@ -187,10 +180,17 @@ async def handle_message(message: types.Message):
         # Добавьте ответ бота в историю
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{chat_response['choices'][0]['message']['content']}"})
 
-        await dp.storage.set_data(chat=user_id, data=user_data)
-
         # Отправьте ответ пользователю
         await msg.edit_text(chat_response['choices'][0]['message']['content'])
+
+        # Ограничьте историю MAX_HISTORY сообщениями
+        if len(user_data['history']) > MAX_HISTORY:
+            summary = await get_summary(user_id)
+            asyncio.create_task(message.answer('Короче:\n' + summary))
+            # Замените историю диалога суммарным представлением
+            user_data['history'] = [{"role": "assistant", "content": summary}]
+
+        await dp.storage.set_data(chat=user_id, data=user_data)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
