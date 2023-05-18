@@ -93,7 +93,7 @@ async def summarize_history(message: types.Message):
         history_text = await get_history(user_id)
         if history_text is not None:
             # Сформируйте запрос на суммирование к GPT-3.5
-            chat_response = openai.ChatCompletion.create(
+            chat_response = await openai.ChatCompletion.acreate(
                 model="gpt-3.5-turbo",
                 messages=[{'role': 'system', 'content': f"Пожалуйста, суммируйте следующий текст:\n{history_text}"}]
             )
@@ -168,7 +168,7 @@ async def handle_message(message: types.Message):
         user_data['history'] = user_data['history'][-MAX_HISTORY:]
 
         # Сформируйте ответ от GPT-3.5
-        chat_response = openai.ChatCompletion.create(
+        chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
             messages=[{'role': 'assistant', 'content': ASSISTANT_NAME}] + user_data['history']
         )
