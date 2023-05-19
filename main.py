@@ -1,8 +1,11 @@
 import asyncio
+import functools
 import os
 import re
+import tempfile
 import traceback
 
+import gTTS as gTTS
 from aiogram import Bot, types, Dispatcher, executor
 import os
 from aiogram import Bot, types, Dispatcher, executor
@@ -204,7 +207,14 @@ async def handle_edited_message(message: types.Message):
     except:
         traceback.print_exc()
         await message.answer('Не удалось получить ответ от Демиурга')
-
+async def text_to_speech(text):
+    # Преобразование текста в речь и сохранение во временный файл
+    with tempfile.NamedTemporaryFile(delete=True) as fp:
+        filename = fp.name + ".mp3"
+    tts = await asyncio.get_running_loop().run_in_executor(None, functools.partial(gTTS,lang='ru'),text)  # Указать язык текста
+    await asyncio.get_running_loop().run_in_executor(None,
+                                                     tts.save,(filename))
+    return filename
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message):
 
@@ -236,6 +246,9 @@ async def handle_message(message: types.Message):
 
         # Отправьте ответ пользователю
         await msg.edit_text(response_text)
+        audio=await text_to_speech(response_text)
+        await message.reply_audio(audio,caption=response_text)
+        await msg.delete()
         #await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Ограничьте историю MAX_HISTORY сообщениями
