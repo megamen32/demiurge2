@@ -53,12 +53,13 @@ async def improve_prompt(prompt, user_id):
     if lang != 'en':
         user_data = await dp.storage.get_data(user=user_id)
         history = user_data.get('history', [])
+        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
 
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=history + [
+            messages=history_for_openai + [
                 {"role": "user",
-                 "content": f'translate this text from {lang} to English: "{prompt}" and improve it for image generation'}
+                 "content": f'translate this prompt from {lang} to English: "{prompt}" and improve it for image generation. Answer only final improved prompt without any other text'}
             ],
             max_tokens=200
         )
@@ -145,7 +146,11 @@ class DrawingSettings(StatesGroup):
 async def handle_draw_settings(message: types.Message,state:FSMContext):
     keyboard = create_settings_keyboard()
     await DrawingSettings.settings.set()
-    await message.reply("Please choose style and ratio for your drawings.", reply_markup=keyboard)
+    user_data = await dp.storage.get_data(chat=message.from_user.id)
+    style = Style[user_data.get('style', 'ANIME_V2')]
+    ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
+
+    await message.reply(f"Please choose style and ratio for your drawings.{style} {ratio}", reply_markup=keyboard)
 @dp.message_handler(state=DrawingSettings.settings.state)
 async def handle_style_and_ratio(message: types.Message,state:FSMContext):
     user_data = await dp.storage.get_data(chat=message.from_user.id)
