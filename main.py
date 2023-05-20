@@ -345,6 +345,8 @@ async def on_startup(dp):
         BotCommand("summarize", "Суммировать историю диалога"),
         BotCommand("clear", "Clear историю диалога"),
         BotCommand("promt", "Edit gpt start promt"),
+        BotCommand("draw_settings", "draw settings"),
+        BotCommand("draw", "{prompt} draws an image"),
         # Добавьте здесь любые дополнительные команды
     ])
 
