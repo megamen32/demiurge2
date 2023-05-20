@@ -190,6 +190,7 @@ async def handle_text_message(user_id: int, user_name: str, text: str, message_i
     await dp.storage.set_data(chat=user_id, data=user_data)
 
     return chat_response['choices'][0]['message']['content']
+from draw import *
 @dp.edited_message_handler(content_types=types.ContentType.TEXT)
 async def handle_edited_message(message: types.Message):
     try:

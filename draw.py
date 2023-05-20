@@ -7,6 +7,8 @@ import asyncio
 import io
 from aiogram import types
 
+from config import dp
+
 imagine = None
 async def generate_image(prompt: str):
     global imagine
@@ -53,7 +55,6 @@ async def handle_draw(message: types.Message):
 
         await msg.delete()
         photo=await message.answer_photo(photo=img_file,caption=prompt)
-
         img_data=await upscale_image(img_data)
         if img_data is None:
             await message.answer("An error occurred uppscaling  the image.")
@@ -61,8 +62,9 @@ async def handle_draw(message: types.Message):
 
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}-upscale.jpeg'
-        await photo.edit_media(media=img_file)
+        photo2 = await message.answer_photo(photo=img_file, caption=prompt)
+        await photo.delete()
     except:
         traceback.print_exc()
-        await msg.edit_text('An error occurred while generating the image.')
+        await message.answer('An error occurred while generating the image.')
 
