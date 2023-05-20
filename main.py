@@ -5,7 +5,7 @@ import re
 import tempfile
 import traceback
 
-import gTTS as gTTS
+from gtts import gTTS
 from aiogram import Bot, types, Dispatcher, executor
 import os
 from aiogram import Bot, types, Dispatcher, executor
@@ -15,7 +15,7 @@ import openai
 
 # Установите ваши токены здесь
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, InputFile
 import speech_recognition as sr
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, bot
 
@@ -159,6 +159,37 @@ def recognize(file_id):
     os.remove(f'{file_id}.wav')
     return text
 
+
+async def handle_text_message(user_id: int, user_name: str, text: str, message_id: int = None):
+    user_data = await dp.storage.get_data(chat=user_id)
+
+    # Если история пользователя не существует, создайте новую
+    if 'history' not in user_data:
+        user_data['history'] = []
+
+    # Добавьте сообщение пользователя в историю
+    user_data['history'].append({"role": "user", "content": f'{user_name}:{text}', 'message_id': message_id})
+
+    # Создаем новую историю, содержащую только необходимые поля
+    history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+
+    # Сформируйте ответ от GPT-3.5
+    chat_response = await openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + history_for_openai
+    )
+
+    # Добавьте ответ бота в историю
+    user_data['history'].append(
+        {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{chat_response['choices'][0]['message']['content']}"})
+
+    # Ограничьте историю MAX_TOKENS_COUNT токенами
+    while count_tokens(user_data['history']) > MAX_HISTORY:
+        await shorten_history(user_data, user_id)
+
+    await dp.storage.set_data(chat=user_id, data=user_data)
+
+    return chat_response['choices'][0]['message']['content']
 @dp.edited_message_handler(content_types=types.ContentType.TEXT)
 async def handle_edited_message(message: types.Message):
     try:
@@ -197,17 +228,43 @@ async def handle_edited_message(message: types.Message):
         await bot.edit_message_text(response_text,message.chat.id,msg_id)
 
         if count_tokens(user_data['history']) > MAX_HISTORY:
-            summary = await get_summary(user_id)
-            asyncio.create_task(message.answer('Короче:\n' + summary))
-            last_msg=user_data['history'][-2:]
-            user_data['history'] = [{"role": "assistant", "content": summary}]
-            user_data['history'].extend(last_msg)
+            await shorten_history( user_data, user_id)
 
         await dp.storage.set_data(chat=user_id, data=user_data)
     except:
         traceback.print_exc()
         await message.answer('Не удалось получить ответ от Демиурга')
-async def text_to_speech(text):
+
+
+async def shorten_history( user_data, user_id):
+    summary = await get_summary(user_id)
+    asyncio.create_task(bot.send_message(chat_id=user_id,text='Короче:\n' + summary))
+    last_msg = user_data['history'][-2:]
+    user_data['history'] = [{"role": "assistant", "content": summary}]
+    user_data['history'].extend(last_msg)
+
+
+import pyttsx3
+engine=None
+def text_to_speech(text):
+    global engine
+    # Преобразование текста в речь и сохранение во временный файл
+    with tempfile.NamedTemporaryFile(delete=True) as fp:
+        filename = fp.name + ".mp3"
+
+    if engine is None:
+        engine = pyttsx3.init()
+        # Открывайте и просматривайте доступные голоса, чтобы выбрать мужской голос
+        voices = engine.getProperty('voices')
+        for voice in voices:
+            if 'ru' in voice.name and 'male' in voice.gender:
+                engine.setProperty('voice', voice.id)
+
+    engine.save_to_file(text, filename)
+    engine.runAndWait()
+
+    return filename
+async def text_to_speech2(text):
     # Преобразование текста в речь и сохранение во временный файл
     with tempfile.NamedTemporaryFile(delete=True) as fp:
         filename = fp.name + ".mp3"
@@ -246,9 +303,16 @@ async def handle_message(message: types.Message):
 
         # Отправьте ответ пользователю
         await msg.edit_text(response_text)
-        audio=await text_to_speech(response_text)
-        await message.reply_audio(audio,caption=response_text)
-        await msg.delete()
+        try:
+            if False:
+                voice_filename=await asyncio.get_running_loop().run_in_executor(None, text_to_speech,(response_text))
+            else:
+                voice_filename=await text_to_speech2(response_text)
+            if os.path.exists(voice_filename):
+                with open(voice_filename, 'rb') as audio:
+                    await message.reply_voice(voice= audio,caption=response_text)
+                await msg.delete()
+        except:traceback.print_exc()
         #await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Ограничьте историю MAX_HISTORY сообщениями
