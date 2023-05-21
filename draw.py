@@ -65,7 +65,7 @@ async def improve_prompt(prompt, user_id):
         )
 
         # Extract the model's response
-        improved_prompt = chat_response['choices'][0]['message']['content'].replace('"',''),("'",'')
+        improved_prompt = chat_response['choices'][0]['message']['content'].replace('"','').replace("'",'')
 
         # Add translation and improvement to history
         if 'history' in user_data:
@@ -96,6 +96,7 @@ async def handle_draw(message: types.Message):
     msg = await message.reply("Creating image...")
     try:
         prompt=await improve_prompt(prompt,message.chat.id)
+        asyncio.create_task( msg.edit_text(prompt))
         img_data = await generate_image(prompt,message.from_user.id)
 
         if img_data is None:
