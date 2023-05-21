@@ -59,20 +59,21 @@ async def improve_prompt(prompt, user_id):
             model="gpt-3.5-turbo",
             messages=history_for_openai + [
                 {"role": "user",
-                 "content": f'translate this prompt from {lang} to English: "{prompt}" and improve it for image generation. Answer only final improved prompt without any other text'}
+                 "content": f'translate this prompt from {lang} to English: "{prompt}"'}
             ],
-            max_tokens=200
+            max_tokens=100
         )
 
         # Extract the model's response
-        improved_prompt = chat_response['choices'][0]['message']['content']
+        improved_prompt = chat_response['choices'][0]['message']['content'].replace('"',''),("'",'')
 
         # Add translation and improvement to history
         if 'history' in user_data:
             user_data['history'].extend([
                 {"role": "user",
-                 "content": f'translate this text from {lang} to English: "{prompt}" and improve it for image generation'},
+                 "content": f'translate this text from {lang} to English: "{prompt}"'},
                 {"role": "assistant", "content": f"{improved_prompt}"},
+                {"role": "system", "content": f"нарисовал и отправил в чат нарисованную по описанию картинку"},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
 
