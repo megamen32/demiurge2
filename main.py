@@ -301,7 +301,7 @@ async def handle_message(message: types.Message):
             response_text = response_text.split(":", 1)[1].strip()
 
         if '/draw' in response_text:
-            promt=re.sub('/draw "{[^"]}"', response_text)
+            promt=response_text.split('/draw ',1)[-1]
             asyncio.create_task(draw_and_answer(promt,user_id))
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': msg.message_id})
 
@@ -315,7 +315,7 @@ async def handle_message(message: types.Message):
                 voice_filename=await text_to_speech2(response_text)
             if os.path.exists(voice_filename):
                 with open(voice_filename, 'rb') as audio:
-                    await message.reply_voice(voice= audio,caption=response_text)
+                    await message.reply_voice(voice= audio,caption=response_text[:1024])
                 await msg.delete()
         except:traceback.print_exc()
         #await dp.storage.set_data(chat=user_id, data=user_data)
