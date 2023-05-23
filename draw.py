@@ -99,8 +99,8 @@ def create_style_keyboard(prompt):
     ratios = list(Ratio.__members__.keys())
     prompt_db,_=Prompt.get_or_create(text=prompt)
     kb = types.InlineKeyboardMarkup(resize_keyboard=True)
-    width=6
-    raws=5
+    width=5
+    raws=6
     horizontal_styles = random.sample(styles, width*raws)
     for i in range(raws):
         # Добавление горизонтального ряда кнопок со случайными стилями
