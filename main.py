@@ -273,7 +273,10 @@ async def handle_message(message: types.Message):
         # Сформируйте ответ от GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + history_for_openai
+            messages=[
+                         {'role': 'system', 'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                         {'role': 'system', 'content': f'{config.instructions}'}
+                     ] + history_for_openai
         )
 
         # Добавьте ответ бота в историю
