@@ -351,4 +351,5 @@ async def on_startup(dp):
     ])
 
 if __name__ == '__main__':
+    if not Prompt.table_exists(): Prompt.create_table()
     executor.start_polling(dp, on_startup=on_startup)

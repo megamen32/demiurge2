@@ -95,7 +95,7 @@ async def improve_prompt(prompt, user_id):
 def create_style_keyboard(prompt):
     styles = list(Style.__members__.keys())
     ratios = list(Ratio.__members__.keys())
-    prompt_db=Prompt.get_or_create(prompt=prompt)
+    prompt_db,_=Prompt.get_or_create(text=prompt)
     kb = types.InlineKeyboardMarkup(resize_keyboard=True)
     for i in range(3):
         # Добавление горизонтального ряда кнопок со случайными стилями
@@ -114,11 +114,11 @@ def create_style_keyboard(prompt):
     return kb
 
 @dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
-async def handle_ratio_callback(query: types.CallbackQuery, ratio: str):
+async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
     user_data = await dp.storage.get_data(chat=query.from_user.id)
     _,id,text = query.data.split('_',2)
-    prompt=Prompt.get_by_id(id)
+    prompt=Prompt.get_by_id(id).text
     if text in Style.__members__:
         user_data['style'] = text
         await query.answer(f"Set style to {text}.")
@@ -128,26 +128,34 @@ async def handle_ratio_callback(query: types.CallbackQuery, ratio: str):
     else:
         await query.answer("Unknown option.")
     await dp.storage.set_data(chat=query.from_user.id, data=user_data)
-    msg=await query.message.reply('Imagining...')
-    img_data =await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
-    if img_data is None:
-        await msg.edit_text("An error occurred while generating the image.")
-        return
+    msg=await query.message.reply(f'Imagining...{prompt} with {text}')
+    try:
+        img_data =await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
+        if img_data is None:
+            await msg.edit_text("An error occurred while generating the image.")
+            return
 
-    img_file = io.BytesIO(img_data)
-    img_file.name = f'{prompt}_{text}.jpeg'
+        img_file = io.BytesIO(img_data)
+        img_file.name = f'{prompt}_{text}.jpeg'
 
-    await msg.delete()
-    photo = await query.message.answer_photo(photo=img_file, caption=prompt)
-    img_data = await upscale_image(img_data)
-    if img_data is None:
-        await query.message.reply("An error occurred uppscaling  the image.")
-        return
+        await msg.delete()
+        msg=None
+        photo = await query.message.answer_photo(photo=img_file, caption=prompt+text)
+        img_data = await upscale_image(img_data)
+        if img_data is None:
+            await query.message.reply("An error occurred uppscaling  the image.")
+            return
 
-    img_file = io.BytesIO(img_data)
-    img_file.name = f'{prompt}-upscale.jpeg'
-    photo2 = await query.message.answer_photo(photo=img_file, caption=prompt, reply_markup=create_style_keyboard(prompt))
-    await photo.delete()
+        img_file = io.BytesIO(img_data)
+        img_file.name = f'{prompt}-upscale.jpeg'
+        photo2 = await query.message.answer_photo(photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
+        await photo.delete()
+    except:
+        traceback.print_exc()
+        if msg is None:
+            await query.message.reply("An error occurred while imaging the image.")
+        else:
+            await msg.edit_text('An error occurred while imaging the image.')
 
 @dp.message_handler(commands=['draw'])
 async def handle_draw(message: types.Message):
