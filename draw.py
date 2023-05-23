@@ -69,13 +69,18 @@ async def improve_prompt(prompt, user_id):
             model="gpt-3.5-turbo",
             messages=history_for_openai + [
                 {"role": "system",
-                 "content": f'translate this text to English: "{prompt}". Answer only with text that contains the translation on English, do not write extra words or explanations.'}
+                 "content": f'Translate text below to English. Answer only with text that contains the translation on English, do not write extra words or explanations. Text is:\n"{prompt}"'}
             ],
             max_tokens=100
         )
 
         # Extract the model's response
-        improved_prompt = chat_response['choices'][0]['message']['content'].replace('"','').replace("'",'')
+        improved_prompt = chat_response['choices'][0]['message']['content']
+        # Удаление символов кавычек
+        cleaned_text = improved_prompt.replace('"', '').replace("'", '').replace('translates to','')
+
+        # Поиск английского текста с использованием регулярного выражения
+        improved_prompt = ' '.join(re.findall(r'\b[A-Za-z]+\b', cleaned_text))
 
         # Add translation and improvement to history
         if 'history' in user_data:
@@ -167,6 +172,7 @@ async def draw_and_answer(prompt,chat_id):
     msg=await bot.send_message(chat_id, "Creating image...")
     try:
         prompt=await improve_prompt(prompt,chat_id)
+        asyncio.create_task(msg.edit_text(prompt))
         img_data = await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
         if img_data is None:
             await msg.edit_text("An error occurred while generating the image.")

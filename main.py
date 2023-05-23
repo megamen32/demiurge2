@@ -302,6 +302,7 @@ async def handle_message(message: types.Message):
 
         if '/draw' in response_text:
             promt=response_text.split('/draw ',1)[-1]
+            promt=promt.split('\n',1)[0]
             asyncio.create_task(draw_and_answer(promt,user_id))
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': msg.message_id})
 
