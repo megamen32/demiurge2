@@ -57,7 +57,7 @@ async def improve_prompt(prompt, user_id,name):
         lang = 'en'
 
     # If the language is not English, translate and improve it
-    if lang == 'ru' or lang =='uk':
+    if lang == 'ru' or lang =='uk' or lang=='mk':
         user_data = await dp.storage.get_data(user=user_id)
         if 'history' in user_data:
 
@@ -151,9 +151,10 @@ async def handle_ratio_callback(query: types.CallbackQuery):
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}_{text}.jpeg'
 
-        await msg.delete()
-        msg=None
+
         photo = await query.message.answer_photo(photo=img_file, caption=f'{prompt} -{text}')
+        await msg.delete()
+        msg = None
         img_data = await upscale_image(img_data)
         if img_data is None:
             await query.message.reply("An error occurred uppscaling  the image.")
@@ -184,9 +185,9 @@ async def draw_and_answer(prompt,chat_id,name):
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}.jpeg'
 
+        photo = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=f'{prompt}')
         await msg.delete()
         msg = None
-        photo = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=f'{prompt}')
         img_data = await upscale_image(img_data)
         if img_data is None:
             await bot.send_message("An error occurred uppscaling  the image.")
@@ -195,6 +196,7 @@ async def draw_and_answer(prompt,chat_id,name):
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}-upscale.jpeg'
         photo2 = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
+        await photo.delete()
     except:
         traceback.print_exc()
         if msg is None:
