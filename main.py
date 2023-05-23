@@ -34,7 +34,7 @@ def get_first_word(string):
         return first_word
     else:
         return None
-
+instructions='если меня просят нарисовать что-то, то я отвечаю "/draw [describe image on english]"'
 ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
 ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
 @dp.message_handler(commands=['promt'])
@@ -303,6 +303,7 @@ async def handle_message(message: types.Message):
         if '/draw' in response_text:
             promt=response_text.split('/draw ',1)[-1]
             promt=promt.split('\n',1)[0]
+            promt=promt.replace('[','').replace(']','')
             asyncio.create_task(draw_and_answer(promt,user_id))
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': msg.message_id})
 

@@ -67,7 +67,7 @@ async def improve_prompt(prompt, user_id):
 
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=history_for_openai + [
+            messages=  [
                 {"role": "system",
                  "content": f'Translate text below to English. Answer only with text that contains the translation on English, do not write extra words or explanations. Text is:\n"{prompt}"'}
             ],
