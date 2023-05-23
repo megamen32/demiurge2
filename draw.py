@@ -7,6 +7,7 @@ import openai
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
+import config
 from Imaginepy.imaginepy import Imagine, AsyncImagine
 
 from Imaginepy.imaginepy import Imagine, Style, Ratio
@@ -48,7 +49,7 @@ async def upscale_image(img_data):
     return img_data
 
 
-async def improve_prompt(prompt, user_id):
+async def improve_prompt(prompt, user_id,name):
     # Detect the language of the prompt
     try:
         lang = langdetect.detect(prompt)
@@ -59,9 +60,10 @@ async def improve_prompt(prompt, user_id):
     if lang == 'ru' or lang =='uk':
         user_data = await dp.storage.get_data(user=user_id)
         if 'history' in user_data:
+
             user_data['history'].extend([
             {"role": "user",
-             "content": f'/draw {prompt}'}])
+             "content": f'{name}: /draw {prompt}'}])
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
 
@@ -85,8 +87,9 @@ async def improve_prompt(prompt, user_id):
         # Add translation and improvement to history
         if 'history' in user_data:
             user_data['history'].extend([
-                {"role": "assistant", "content": f'/draw "{improved_prompt}"'},
-                {"role": "system", "content": f"draw and sent a picture in the chat based on the description."},
+
+                {"role": "assistant", "content": f'{config.ASSISTANT_NAME_SHORT}: /draw "{improved_prompt}"'},
+                {"role": "system", "content": f"Recieved coomand 'draw' from assitant. Draws and sent a picture in the chat based on the description [{improved_prompt}]."},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
 
@@ -167,11 +170,11 @@ async def handle_ratio_callback(query: types.CallbackQuery):
         else:
             await msg.edit_text('An error occurred while imaging the image.')
 
-async def draw_and_answer(prompt,chat_id):
+async def draw_and_answer(prompt,chat_id,name):
     user_data = await dp.storage.get_data(chat=chat_id)
     msg=await bot.send_message(chat_id, "Creating image...")
     try:
-        prompt=await improve_prompt(prompt,chat_id)
+        prompt=await improve_prompt(prompt,chat_id,name)
         asyncio.create_task(msg.edit_text(prompt))
         img_data = await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
         if img_data is None:
@@ -208,7 +211,7 @@ async def handle_draw(message: types.Message):
 
     msg = await message.reply("Creating image...")
     try:
-        prompt=await improve_prompt(prompt,message.chat.id)
+        prompt=await improve_prompt(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
         asyncio.create_task( msg.edit_text(prompt))
         img_data = await generate_image(prompt,message.from_user.id)
 

@@ -1,23 +1,18 @@
-import asyncio
 import functools
-import os
-import re
 import tempfile
-import traceback
 
 from gtts import gTTS
-from aiogram import Bot, types, Dispatcher, executor
 import os
-from aiogram import Bot, types, Dispatcher, executor
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram import types, executor
 import openai
 
 
 # Установите ваши токены здесь
-from aiogram.contrib.fsm_storage.redis import RedisStorage2
-from aiogram.types import BotCommand, InputFile
+from aiogram.types import BotCommand
 import speech_recognition as sr
-from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, bot
+
+import config
+from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT
 
 # Установите ваш ключ OpenAI
 openai.api_key=CHATGPT_API_KEY
@@ -25,26 +20,13 @@ openai.api_key=CHATGPT_API_KEY
 # Максимальное количество сообщений для сохранения
 MAX_HISTORY = 2048
 
-def get_first_word(string):
-    words = string.split()
-    if words:
-        first_word = words[0]
-        # Удаление дефиса, если он есть
-        first_word = first_word.split('-')[0]
-        return first_word
-    else:
-        return None
-instructions='если меня просят нарисовать что-то, то я отвечаю "/draw [describe image on english]"'
-ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
-ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
+
 @dp.message_handler(commands=['promt'])
 async def change_role(message: types.Message):
-    global ASSISTANT_NAME
-    global ASSISTANT_NAME_SHORT
     text=message.text.split(' ',1)[-1]
-    ASSISTANT_NAME=text
-    ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
-    await message.reply(f'Now i am {ASSISTANT_NAME_SHORT}:\n'+text)
+    config.ASSISTANT_NAME =text
+    config.ASSISTANT_NAME_SHORT = get_first_word(config.ASSISTANT_NAME)
+    await message.reply(f'Now i am {config.ASSISTANT_NAME_SHORT}:\n' + text)
 
 @dp.message_handler(commands=['history'])
 async def show_history(message: types.Message):
@@ -66,8 +48,8 @@ async def get_history(user_id):
         history = user_data['history']
         history_text = ''
         for msg in history:
-            role = 'Пользователь' if msg['role'] == 'user' else "Система"
-            history_text += f'{msg["content"]}\n'
+            role = 'Система: ' if msg['role'] == 'system' else ""
+            history_text += f'{role}{msg["content"]}\n'
         text = history_text
     else:
         text = None
@@ -304,8 +286,8 @@ async def handle_message(message: types.Message):
             promt=response_text.split('/draw ',1)[-1]
             promt=promt.split('\n',1)[0]
             promt=promt.replace('[','').replace(']','')
-            asyncio.create_task(draw_and_answer(promt,user_id))
-        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': msg.message_id})
+            asyncio.create_task(draw_and_answer(promt,user_id,message.from_user.full_name or message.from_user.username))
+        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
 
 
         # Отправьте ответ пользователю
