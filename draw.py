@@ -89,7 +89,7 @@ async def improve_prompt(prompt, user_id,name):
             user_data['history'].extend([
 
                 {"role": "assistant", "content": f'{config.ASSISTANT_NAME_SHORT}: /draw "{improved_prompt}"'},
-                {"role": "system", "content": f"Recieved coomand 'draw' from assitant. Draws and sent a picture in the chat based on the description [{improved_prompt}]."},
+                {"role": "system", "content": f"Received /draw command from the {config.ASSISTANT_NAME_SHORT}. Draws and sent a picture in the chat based on the description [{improved_prompt}]."},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
 
