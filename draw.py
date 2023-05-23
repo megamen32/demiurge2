@@ -1,3 +1,4 @@
+import random
 import re
 import traceback
 
@@ -14,6 +15,7 @@ import io
 from aiogram import types
 
 from config import dp
+from datebase import Prompt
 
 imagine = None
 async def generate_image(prompt: str, user_id):
@@ -21,6 +23,10 @@ async def generate_image(prompt: str, user_id):
     style = Style[user_data.get('style', 'ANIME_V2')]
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
 
+    return await gen_img(prompt, ratio, style)
+
+
+async def gen_img(prompt, ratio, style):
     global imagine
     if imagine is None:
         imagine = AsyncImagine()
@@ -50,7 +56,7 @@ async def improve_prompt(prompt, user_id):
         lang = 'en'
 
     # If the language is not English, translate and improve it
-    if lang != 'en':
+    if lang == 'ru' or lang =='uk':
         user_data = await dp.storage.get_data(user=user_id)
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
@@ -59,7 +65,7 @@ async def improve_prompt(prompt, user_id):
             model="gpt-3.5-turbo",
             messages=history_for_openai + [
                 {"role": "user",
-                 "content": f'translate this prompt from {lang} to English: "{prompt}"'}
+                 "content": f'translate this text to English: "{prompt}". Answer only with text that contains the translation, do not write extra words or explanations.'}
             ],
             max_tokens=100
         )
@@ -71,9 +77,9 @@ async def improve_prompt(prompt, user_id):
         if 'history' in user_data:
             user_data['history'].extend([
                 {"role": "user",
-                 "content": f'translate this text from {lang} to English: "{prompt}"'},
+                 "content": f'/draw {prompt}'},
                 {"role": "assistant", "content": f"{improved_prompt}"},
-                {"role": "system", "content": f"нарисовал и отправил в чат нарисованную по описанию картинку"},
+                {"role": "system", "content": f"draw and sent a picture in the chat based on the description."},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
 
@@ -85,6 +91,63 @@ async def improve_prompt(prompt, user_id):
     # If the language is English, return the original prompt
     return prompt
 
+
+def create_style_keyboard(prompt):
+    styles = list(Style.__members__.keys())
+    ratios = list(Ratio.__members__.keys())
+    prompt_db=Prompt.get_or_create(prompt=prompt)
+    kb = types.InlineKeyboardMarkup(resize_keyboard=True)
+    for i in range(3):
+        # Добавление горизонтального ряда кнопок со случайными стилями
+        horizontal_styles = random.sample(styles, 8)
+        buttons = [
+            types.InlineKeyboardButton(style, callback_data=f'style_{prompt_db.id}_{style}')
+            for style in horizontal_styles
+        ]
+        kb.row(*buttons)
+    buttons = [
+        types.InlineKeyboardButton(ratio, callback_data=f'ratio_{prompt_db.id}_{ratio}')
+        for ratio in ratios
+    ]
+    kb.row(*buttons)
+
+    return kb
+
+@dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
+async def handle_ratio_callback(query: types.CallbackQuery, ratio: str):
+    # Обработка callback для соотношений
+    user_data = await dp.storage.get_data(chat=query.from_user.id)
+    _,id,text = query.data.split('_',2)
+    prompt=Prompt.get_by_id(id)
+    if text in Style.__members__:
+        user_data['style'] = text
+        await query.answer(f"Set style to {text}.")
+    elif text in Ratio.__members__:
+        user_data['ratio'] = text
+        await query.answer(f"Set ratio to {text}.")
+    else:
+        await query.answer("Unknown option.")
+    await dp.storage.set_data(chat=query.from_user.id, data=user_data)
+    msg=await query.message.reply('Imagining...')
+    img_data =await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
+    if img_data is None:
+        await msg.edit_text("An error occurred while generating the image.")
+        return
+
+    img_file = io.BytesIO(img_data)
+    img_file.name = f'{prompt}_{text}.jpeg'
+
+    await msg.delete()
+    photo = await query.message.answer_photo(photo=img_file, caption=prompt)
+    img_data = await upscale_image(img_data)
+    if img_data is None:
+        await query.message.reply("An error occurred uppscaling  the image.")
+        return
+
+    img_file = io.BytesIO(img_data)
+    img_file.name = f'{prompt}-upscale.jpeg'
+    photo2 = await query.message.answer_photo(photo=img_file, caption=prompt, reply_markup=create_style_keyboard(prompt))
+    await photo.delete()
 
 @dp.message_handler(commands=['draw'])
 async def handle_draw(message: types.Message):
@@ -115,7 +178,7 @@ async def handle_draw(message: types.Message):
 
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}-upscale.jpeg'
-        photo2 = await message.answer_photo(photo=img_file, caption=prompt)
+        photo2 = await message.answer_photo(photo=img_file, caption=prompt,reply_markup=create_style_keyboard(prompt))
         await photo.delete()
     except:
         traceback.print_exc()

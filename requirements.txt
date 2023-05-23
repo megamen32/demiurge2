@@ -3,3 +3,4 @@ aiogram~=2.25.1
 speech-recognition-fork
 python-decouple
 gTTS
+peewee

@@ -116,7 +116,7 @@ async def get_summary( user_id):
         # Сформируйте запрос на суммирование к GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=[{'role': 'system', 'content': f"Пожалуйста, суммируйте следующий текст:\n{history_text}"}]
+            messages=[{'role': 'system', 'content': f"Your memory is full, you need to remember and answer with the most important information from dialogue:\n{history_text}"}]
         )
         summary = chat_response['choices'][0]['message']['content']
     return summary
