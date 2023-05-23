@@ -140,14 +140,14 @@ async def handle_ratio_callback(query: types.CallbackQuery):
 
         await msg.delete()
         msg=None
-        photo = await query.message.answer_photo(photo=img_file, caption=prompt+text)
+        photo = await query.message.answer_photo(photo=img_file, caption=f'{prompt} -{text}')
         img_data = await upscale_image(img_data)
         if img_data is None:
             await query.message.reply("An error occurred uppscaling  the image.")
             return
 
         img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}-upscale.jpeg'
+        img_file.name = f'{prompt}-{text}-upscale.jpeg'
         photo2 = await query.message.answer_photo(photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
         await photo.delete()
     except:
