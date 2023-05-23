@@ -105,7 +105,7 @@ def create_style_keyboard(prompt):
 
         buttons = [
             types.InlineKeyboardButton(style.lower(), callback_data=f'style_{prompt_db.id}_{style}')
-            for style in horizontal_styles[i*8:(i+1)*8]
+            for style in horizontal_styles[i*width:(i+1)*width]
         ]
         kb.row(*buttons)
     buttons = [
