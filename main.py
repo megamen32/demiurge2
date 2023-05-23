@@ -298,12 +298,16 @@ async def handle_message(message: types.Message):
         while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
             response_text = response_text.split(":", 1)[1].strip()
 
+
+
+
+        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
         if '/draw' in response_text:
             promt=response_text.split('/draw ',1)[-1]
             promt=promt.split('\n',1)[0]
             promt=promt.replace('[','').replace(']','')
             asyncio.create_task(draw_and_answer(promt,user_id,message.from_user.full_name or message.from_user.username))
-        user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
+            response_text = response_text.replace('/draw', '').replace(promt, '')
 
 
         # Отправьте ответ пользователю
