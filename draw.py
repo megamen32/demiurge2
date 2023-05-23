@@ -97,17 +97,19 @@ def create_style_keyboard(prompt):
     ratios = list(Ratio.__members__.keys())
     prompt_db,_=Prompt.get_or_create(text=prompt)
     kb = types.InlineKeyboardMarkup(resize_keyboard=True)
-    horizontal_styles = random.sample(styles, 8*3)
-    for i in range(3):
+    width=6
+    raws=5
+    horizontal_styles = random.sample(styles, width*raws)
+    for i in range(raws):
         # Добавление горизонтального ряда кнопок со случайными стилями
 
         buttons = [
-            types.InlineKeyboardButton(style, callback_data=f'style_{prompt_db.id}_{style}')
+            types.InlineKeyboardButton(style.lower(), callback_data=f'style_{prompt_db.id}_{style}')
             for style in horizontal_styles[i*8:(i+1)*8]
         ]
         kb.row(*buttons)
     buttons = [
-        types.InlineKeyboardButton(ratio, callback_data=f'ratio_{prompt_db.id}_{ratio}')
+        types.InlineKeyboardButton(ratio.lower(), callback_data=f'ratio_{prompt_db.id}_{ratio}')
         for ratio in ratios
     ]
     kb.row(*buttons)
