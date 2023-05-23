@@ -166,6 +166,7 @@ def draw_and_answer(prompt,chat_id):
     user_data = await dp.storage.get_data(chat=chat_id)
     msg=await bot.send_message(chat_id, "Creating image...")
     try:
+        prompt=await improve_prompt(prompt,chat_id)
         img_data = await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
         if img_data is None:
             await msg.edit_text("An error occurred while generating the image.")
