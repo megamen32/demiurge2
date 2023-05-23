@@ -162,7 +162,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
         else:
             await msg.edit_text('An error occurred while imaging the image.')
 
-def draw_and_answer(prompt,chat_id):
+async def draw_and_answer(prompt,chat_id):
     user_data = await dp.storage.get_data(chat=chat_id)
     msg=await bot.send_message(chat_id, "Creating image...")
     try:
@@ -176,7 +176,7 @@ def draw_and_answer(prompt,chat_id):
 
         await msg.delete()
         msg = None
-        photo = await bot.send_photo(photo=img_file, caption=f'{prompt}')
+        photo = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=f'{prompt}')
         img_data = await upscale_image(img_data)
         if img_data is None:
             await bot.send_message("An error occurred uppscaling  the image.")
@@ -184,7 +184,7 @@ def draw_and_answer(prompt,chat_id):
 
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}-upscale.jpeg'
-        photo2 = await bot.send_photo(photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
+        photo2 = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
     except:
         traceback.print_exc()
         if msg is None:
