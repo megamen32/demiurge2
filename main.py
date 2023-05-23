@@ -116,7 +116,7 @@ async def get_summary( user_id):
         # Сформируйте запрос на суммирование к GPT-3.5
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=[{'role': 'system', 'content': f"Your memory is full, you need to remember and answer with the most important information from dialogue:\n{history_text}"}]
+            messages=[{'role': 'system', 'content': f"Your memory is full, you need to summarize most important information from dialogue:\n{history_text}"}]
         )
         summary = chat_response['choices'][0]['message']['content']
     return summary
@@ -299,6 +299,10 @@ async def handle_message(message: types.Message):
 
         while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
             response_text = response_text.split(":", 1)[1].strip()
+
+        if '/draw' in response_text:
+            promt=re.sub('/draw "{[^"]}"', response_text)
+            asyncio.create_task(draw_and_answer(promt,user_id))
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}",'message_id': msg.message_id})
 
 

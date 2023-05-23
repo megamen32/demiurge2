@@ -14,7 +14,7 @@ import asyncio
 import io
 from aiogram import types
 
-from config import dp
+from config import dp, bot
 from datebase import Prompt
 
 imagine = None
@@ -80,7 +80,7 @@ async def improve_prompt(prompt, user_id):
         # Add translation and improvement to history
         if 'history' in user_data:
             user_data['history'].extend([
-                {"role": "assistant", "content": f"/draw {improved_prompt}"},
+                {"role": "assistant", "content": f'/draw "{improved_prompt}"'},
                 {"role": "system", "content": f"draw and sent a picture in the chat based on the description."},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
@@ -161,6 +161,36 @@ async def handle_ratio_callback(query: types.CallbackQuery):
             await query.message.reply("An error occurred while imaging the image.")
         else:
             await msg.edit_text('An error occurred while imaging the image.')
+
+def draw_and_answer(prompt,chat_id):
+    user_data = await dp.storage.get_data(chat=chat_id)
+    msg=await bot.send_message(chat_id, "Creating image...")
+    try:
+        img_data = await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
+        if img_data is None:
+            await msg.edit_text("An error occurred while generating the image.")
+            return
+
+        img_file = io.BytesIO(img_data)
+        img_file.name = f'{prompt}.jpeg'
+
+        await msg.delete()
+        msg = None
+        photo = await bot.send_photo(photo=img_file, caption=f'{prompt}')
+        img_data = await upscale_image(img_data)
+        if img_data is None:
+            await bot.send_message("An error occurred uppscaling  the image.")
+            return
+
+        img_file = io.BytesIO(img_data)
+        img_file.name = f'{prompt}-upscale.jpeg'
+        photo2 = await bot.send_photo(photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
+    except:
+        traceback.print_exc()
+        if msg is None:
+            await bot.send_message(chat_id, "An error occurred while generating the image.")
+        else:
+            await msg.edit_text("An error occurred while generating the image.")
 
 @dp.message_handler(commands=['draw'])
 async def handle_draw(message: types.Message):
