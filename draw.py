@@ -58,14 +58,18 @@ async def improve_prompt(prompt, user_id):
     # If the language is not English, translate and improve it
     if lang == 'ru' or lang =='uk':
         user_data = await dp.storage.get_data(user=user_id)
+        if 'history' in user_data:
+            user_data['history'].extend([
+            {"role": "user",
+             "content": f'/draw {prompt}'}])
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
 
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
             messages=history_for_openai + [
-                {"role": "user",
-                 "content": f'translate this text to English: "{prompt}". Answer only with text that contains the translation, do not write extra words or explanations.'}
+                {"role": "system",
+                 "content": f'translate this text to English: "{prompt}". Answer only with text that contains the translation on English, do not write extra words or explanations.'}
             ],
             max_tokens=100
         )
@@ -76,9 +80,7 @@ async def improve_prompt(prompt, user_id):
         # Add translation and improvement to history
         if 'history' in user_data:
             user_data['history'].extend([
-                {"role": "user",
-                 "content": f'/draw {prompt}'},
-                {"role": "assistant", "content": f"{improved_prompt}"},
+                {"role": "assistant", "content": f"/draw {improved_prompt}"},
                 {"role": "system", "content": f"draw and sent a picture in the chat based on the description."},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
