@@ -4,3 +4,4 @@ speech-recognition-fork
 python-decouple
 gTTS
 peewee
+whisper

@@ -133,6 +133,19 @@ def recognize(file_id):
     # Преобразование аудиофайла в формат WAV для распознавания речи
     os.system(f"ffmpeg -i {file_id}.ogg {file_id}.wav")
     # Используйте SpeechRecognition для преобразования аудио в текст
+    import whisper
+
+    model = whisper.load_model("small")
+    result = model.transcribe(f"{file_id}.wav")
+    text=(result["text"])
+
+    os.remove(f'{file_id}.ogg')
+    os.remove(f'{file_id}.wav')
+    return text
+def recognize_old(file_id):
+    # Преобразование аудиофайла в формат WAV для распознавания речи
+    os.system(f"ffmpeg -i {file_id}.ogg {file_id}.wav")
+    # Используйте SpeechRecognition для преобразования аудио в текст
     recognizer = sr.Recognizer()
     with sr.AudioFile(f"{file_id}.wav") as source:
         audio = recognizer.record(source)
