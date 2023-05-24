@@ -1,5 +1,6 @@
 import functools
 import tempfile
+import traceback
 
 from gtts import gTTS
 import os
@@ -96,9 +97,10 @@ async def get_summary( user_id):
     history_text = await get_history(user_id)
     if history_text is not None:
         # Сформируйте запрос на суммирование к GPT-3.5
+        config.set_random_api_key()
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
-            messages=[{'role': 'system', 'content': f"Your memory is full, you need to summarize most important information from dialogue:\n{history_text}"}]
+            messages=[{'role': 'system', 'content': f"Your memory is full, you need to summarize dialogue:\n{history_text}"}]
         )
         summary = chat_response['choices'][0]['message']['content']
     return summary
@@ -194,39 +196,21 @@ async def handle_edited_message(message: types.Message):
 
         if 'history' not in user_data:
             user_data['history'] = []
+        try:
+            # Находим и заменяем отредактированное сообщение в истории
+            msg_id=None
+            for msg in reversed(user_data['history']):
+                if msg['role'] == 'user' and 'message_id' in msg and msg['message_id'] == message.message_id:
+                    msg_id=user_data['history'].index(msg)
+                    break
+            user_data['history']=user_data['history'][:msg_id]
+            await dp.storage.set_data(chat=user_id, data=user_data)
+        except:
+            traceback.print_exc()
 
-        # Находим и заменяем отредактированное сообщение в истории
+        await handle_message(message)
 
-        for msg in reversed(user_data['history']):
-            if msg['role'] == 'user' and 'message_id' in msg and msg['message_id'] == message.message_id:
-                msg['content'] = f"{message.from_user.full_name or message.from_user.username}:{message.text}"
-                break
-        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-        # Запрос к модели GPT-3.5 Turbo
-        chat_response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
-            messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + history_for_openai
-        )
 
-        response_text = chat_response['choices'][0]['message']['content']
-
-        if ":" in response_text and len(response_text.split(":")[0].split()) < 5:
-            response_text = response_text.split(":", 1)[1].strip()
-
-        # Заменяем последний ответ модели на новый
-        msg_id=None
-        for msg in reversed(user_data['history']):
-            if msg['role'] == 'assistant':
-                msg['content'] = response_text
-                msg_id=msg['message_id']
-                break
-
-        await bot.edit_message_text(response_text,message.chat.id,msg_id)
-
-        if count_tokens(user_data['history']) > MAX_HISTORY:
-            await shorten_history( user_data, user_id)
-
-        await dp.storage.set_data(chat=user_id, data=user_data)
     except:
         traceback.print_exc()
         await message.answer('Не удалось получить ответ от Демиурга')
@@ -284,6 +268,7 @@ async def handle_message(message: types.Message):
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         # Сформируйте ответ от GPT-3.5
+        config.set_random_api_key()
         chat_response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
             messages=[
