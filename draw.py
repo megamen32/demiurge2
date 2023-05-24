@@ -31,13 +31,20 @@ async def gen_img(prompt, ratio, style):
     global imagine
     if imagine is None:
         imagine = AsyncImagine()
-    img_data = await imagine.sdprem(
-        prompt=prompt,
-        style=style,
-        ratio=ratio
-    )
-    if img_data is None:
-        return None
+    while True:
+        img_data_task = asyncio.create_task( imagine.sdprem(
+            prompt=prompt,
+            style=style,
+            ratio=ratio
+        ))
+        try:
+            img_data=await asyncio.wait_for(img_data_task,timeout=10)
+            if img_data is None:
+                continue
+            break
+        except:
+            continue
+
     return img_data
 
 
@@ -58,7 +65,7 @@ async def improve_prompt(prompt, user_id,name):
 
     # If the language is not English, translate and improve it
     if lang == 'ru' or lang =='uk' or lang=='mk':
-        user_data = await dp.storage.get_data(user=user_id)
+        user_data = await dp.storage.get_data(chat=user_id)
         if 'history' in user_data:
 
             user_data['history'].extend([
@@ -88,8 +95,8 @@ async def improve_prompt(prompt, user_id,name):
         if 'history' in user_data:
             user_data['history'].extend([
 
-                {"role": "assistant", "content": f'{config.ASSISTANT_NAME_SHORT}: /draw "{improved_prompt}"'},
-                {"role": "system", "content": f"Received /draw command from the {config.ASSISTANT_NAME_SHORT}. Draws and sent a picture in the chat based on the description [{improved_prompt}]."},
+                {"role": "assistant", "content": f'{config.ASSISTANT_NAME_SHORT}: draw("{improved_prompt}")'},
+                {"role": "system", "content": f"Received draw() command from the {config.ASSISTANT_NAME_SHORT}. Draws and sent a picture in the chat based on the description [{improved_prompt}]."},
             ])
         await dp.storage.set_data(user=user_id, data=user_data)
 
@@ -129,7 +136,7 @@ def create_style_keyboard(prompt):
 @dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
 async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
-    user_data = await dp.storage.get_data(chat=query.from_user.id)
+    user_data = await dp.storage.get_data(chat=query.message.chat.id)
     _,id,text = query.data.split('_',2)
     prompt=Prompt.get_by_id(id).text
     if text in Style.__members__:
@@ -140,7 +147,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
         await query.answer(f"Set ratio to {text}.")
     else:
         await query.answer("Unknown option.")
-    await dp.storage.set_data(chat=query.from_user.id, data=user_data)
+    await dp.storage.set_data(chat=query.message.chat.id, data=user_data)
     msg=await query.message.reply(f'Imagining...{prompt} with {text}')
     try:
         img_data =await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
@@ -215,7 +222,7 @@ async def handle_draw(message: types.Message):
     try:
         prompt=await improve_prompt(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
         asyncio.create_task( msg.edit_text(prompt))
-        img_data = await generate_image(prompt,message.from_user.id)
+        img_data = await generate_image(prompt,message.chat.id)
 
         if img_data is None:
             await msg.edit_text("An error occurred while generating the image.")
@@ -266,14 +273,14 @@ class DrawingSettings(StatesGroup):
 async def handle_draw_settings(message: types.Message,state:FSMContext):
     keyboard = create_settings_keyboard()
     await DrawingSettings.settings.set()
-    user_data = await dp.storage.get_data(chat=message.from_user.id)
+    user_data = await dp.storage.get_data(chat=message.chat.id)
     style = Style[user_data.get('style', 'ANIME_V2')]
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
 
     await message.reply(f"Please choose style and ratio for your drawings.{style} {ratio}", reply_markup=keyboard)
 @dp.message_handler(state=DrawingSettings.settings.state)
 async def handle_style_and_ratio(message: types.Message,state:FSMContext):
-    user_data = await dp.storage.get_data(chat=message.from_user.id)
+    user_data = await dp.storage.get_data(chat=message.chat.id)
     text = message.text
     if text in Style.__members__:
         user_data['style'] = text
@@ -284,4 +291,4 @@ async def handle_style_and_ratio(message: types.Message,state:FSMContext):
     else:
         await message.reply("Unknown option.")
     await state.finish()
-    await dp.storage.set_data(chat=message.from_user.id, data=user_data)
+    await dp.storage.set_data(chat=message.chat.id, data=user_data)

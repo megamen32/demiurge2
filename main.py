@@ -287,27 +287,29 @@ async def handle_message(message: types.Message):
 
 
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
-        if '/draw' in response_text:
-            promt=response_text.split('/draw ',1)[-1]
-            promt=promt.split('\n',1)[0]
-            promt=promt.replace('[','').replace(']','')
-            asyncio.create_task(draw_and_answer(promt,user_id,message.from_user.full_name or message.from_user.username))
-            response_text = response_text.replace('/draw', '').replace(promt, '')
+        if 'draw("' in response_text:
+            prompt = re.findall(r'draw\("(.+?)"\)', response_text)[0]
+            asyncio.create_task(
+                draw_and_answer(prompt, user_id, message.from_user.full_name or message.from_user.username))
+            response_text = re.sub(r'draw\(".+?"\)', '', response_text)
 
 
         # Отправьте ответ пользователю
-        await msg.edit_text(response_text)
-        try:
-            if False:
-                voice_filename=await asyncio.get_running_loop().run_in_executor(None, text_to_speech,(response_text))
-            else:
-                voice_filename=await text_to_speech2(response_text)
-            if os.path.exists(voice_filename):
-                with open(voice_filename, 'rb') as audio:
-                    await message.reply_voice(voice= audio,caption=response_text[:1024])
-                await msg.delete()
-        except:traceback.print_exc()
-        #await dp.storage.set_data(chat=user_id, data=user_data)
+        if response_text:
+            await msg.edit_text(response_text)
+            try:
+                if False:
+                    voice_filename=await asyncio.get_running_loop().run_in_executor(None, text_to_speech,(response_text))
+                else:
+                    voice_filename=await text_to_speech2(response_text)
+                if os.path.exists(voice_filename):
+                    with open(voice_filename, 'rb') as audio:
+                        await message.reply_voice(voice= audio,caption=response_text[:1024])
+                    await msg.delete()
+            except:traceback.print_exc()
+            #await dp.storage.set_data(chat=user_id, data=user_data)
+        else:
+            await msg.delete()
 
         # Ограничьте историю MAX_HISTORY сообщениями
         if count_tokens(user_data['history']) > MAX_HISTORY:
@@ -319,6 +321,7 @@ async def handle_message(message: types.Message):
             user_data['history'].extend(last_msg)
 
         await dp.storage.set_data(chat=user_id, data=user_data)
+
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
