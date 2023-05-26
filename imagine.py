@@ -57,7 +57,7 @@ async def upscale_image(file_name, number):
 
     return None
 
-@dp.message_handler(commands=['imagine'])
+@dp.message_handler(commands=['imagine','i'])
 async def handle_imagine(message: types.Message):
     prompt = message.get_args()
     if not prompt:
