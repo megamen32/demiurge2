@@ -78,7 +78,10 @@ async def improve_prompt(prompt, user_id,name):
             model="gpt-3.5-turbo",
             messages=  [
                 {"role": "system",
-                 "content": f'Translate text below to English. Answer only with text that contains the translation on English, do not write extra words or explanations. Text is:\n"{prompt}"'}
+                 "content": '''Structure of midjourney prompt:
+(subject of the image), (5 descriptive keyword), (camera type), (camera lens type), (time of day), (style of photography), (type of film), (Realism Level), (Best type of lighting for the subject), best aspect ratio for the subject of image in this format --ar width:height).
+
+Based on the above structure, create a detailed narrative of the scene. Generate only one variant in english language. Subject of the prompt is: '''+prompt}
             ],
             max_tokens=100
         )
