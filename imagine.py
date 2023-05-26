@@ -59,14 +59,22 @@ async def upscale_image(file_name, number):
 
 @dp.message_handler(commands=['imagine','i'])
 async def handle_imagine(message: types.Message):
-    prompt = message.get_args()
+    old=prompt = message.get_args()
     if not prompt:
         await message.reply("Please provide a description for the image.")
         return
 
     msg = await message.reply("Creating image...")
     try:
-        prompt=await improve_prompt(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
+        chat_id=message.chat.id
+
+
+        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data['history'].extend([
+            {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
+        await dp.storage.set_data(chat=chat_id,data=user_data)
+        prompt = await improve_prompt(prompt, message.chat.id,
+                                      message.from_user.full_name or message.from_user.username)
         asyncio.create_task( msg.edit_text(prompt))
         img_data=None
         try:

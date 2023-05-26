@@ -70,7 +70,7 @@ async def improve_prompt(prompt, user_id,name):
     if lang == 'ru' or lang =='uk' or lang=='mk':
         user_data = await dp.storage.get_data(chat=user_id)
         history = user_data.get('history', [])
-        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in history]
         chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=  history_for_openai+[
@@ -103,7 +103,13 @@ You will receive a text prompt and then create one creative prompt for the Midjo
 
         # Поиск английского текста с использованием регулярного выражения
         improved_prompt = ' '.join(re.findall(r'\b[A-Za-z]+\b', cleaned_text))
+        if improved_prompt.strip().startswith('draw '):
+            improved_prompt.replace('draw ','',1)
 
+        user_data = await dp.storage.get_data(chat=user_id)
+        user_data['history'].extend([
+            {'role': 'system', 'content': f'Improved prompt to {improved_prompt}'}])
+        await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Remove the model's name from the response
         improved_prompt = re.sub(r'^.*?:', '', improved_prompt).strip()
@@ -188,6 +194,9 @@ async def draw_and_answer(prompt,chat_id,name):
 
 
         photo2 = await bot.send_photo(chat_id=chat_id,photo=io.BytesIO(img_file), caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb)
+        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data['history'].append({'role':'system','content':f'Received /draw command. Generates image based on description with {style} style and sends to chat.'})
+        await dp.storage.set_data(chat=chat_id,data=user_data)
         if photo is not None:
             await photo.delete()
     except:
@@ -203,6 +212,11 @@ async def handle_draw(message: types.Message):
     if not prompt:
         await message.reply("Please provide a description for the image.")
         return
+    chat_id=message.chat.id
+    user_data = await dp.storage.get_data(chat=chat_id)
+    user_data['history'].extend([
+        {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {prompt}'}])
+    await dp.storage.set_data(chat=chat_id, data=user_data)
     await draw_and_answer(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
 
 
