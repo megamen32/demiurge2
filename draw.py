@@ -74,7 +74,6 @@ async def improve_prompt(prompt, user_id,name):
              "content": f'{name}: /draw {prompt}'}])
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-        config.set_random_api_key()
         chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=  [

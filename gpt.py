@@ -23,7 +23,7 @@ async def process_queue():
 # Create a rate limiter that allows 3 operations per minute
 rate_limiter = AsyncLimiter(3, 60)
 
-async def agpt(params):
+async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
     async with rate_limiter:
         config.set_random_api_key()
