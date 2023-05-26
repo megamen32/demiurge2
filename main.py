@@ -292,13 +292,19 @@ async def handle_message(message: types.Message):
 
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
         while 'draw("' in response_text:
-            prompt = re.findall(r'draw\("(.+?)"\)', response_text)[0]
+            prompts = re.findall(r'draw\("(.+?)"\)', response_text)
+            if not any(prompts):
+                break
+            prompt = prompts[0]
             asyncio.create_task(draw_and_answer(prompt, user_id, ASSISTANT_NAME_SHORT))
             response_text = re.sub(r'draw\(".+?"\)', '', response_text)
         while '/draw' in response_text:
-            prompt = re.findall(r'\/draw \[?\'?\"?(.+?)\'?\"?\]?$', response_text)[0]
+            prompts = re.findall(r'\/draw (.+?)\/?$', response_text)
+            if not any(prompts):
+                break
+            prompt = prompts[0]
             asyncio.create_task(draw_and_answer(prompt, user_id, ASSISTANT_NAME_SHORT))
-            response_text = re.sub(r'\/draw \[?\'?\"?(.+?)\'?\"?\]?$', '', response_text)
+            response_text = re.sub(r'\/draw (.+?)\/$', '', response_text)
 
 
         # Отправьте ответ пользователю
