@@ -104,14 +104,6 @@ You will receive a text prompt and then create one creative prompt for the Midjo
         # Поиск английского текста с использованием регулярного выражения
         improved_prompt = ' '.join(re.findall(r'\b[A-Za-z]+\b', cleaned_text))
 
-        # Add translation and improvement to history
-        if 'history' in user_data:
-            user_data['history'].extend([
-
-                {"role": "assistant", "content": f'{config.ASSISTANT_NAME_SHORT}: draw("{improved_prompt}")'},
-                {"role": "system", "content": f"Received draw() command from the {config.ASSISTANT_NAME_SHORT}. Draws and sent a picture in the chat based on the description [{improved_prompt}]."},
-            ])
-        await dp.storage.set_data(user=user_id, data=user_data)
 
         # Remove the model's name from the response
         improved_prompt = re.sub(r'^.*?:', '', improved_prompt).strip()
