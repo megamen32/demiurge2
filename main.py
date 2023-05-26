@@ -3,6 +3,7 @@ import re
 import subprocess
 import tempfile
 import traceback
+from datetime import datetime, timedelta
 
 from gtts import gTTS
 import os
@@ -304,7 +305,7 @@ async def handle_message(message: types.Message):
     try:
         user_id = message.chat.id
         user_data = await dp.storage.get_data(chat=user_id)
-
+        user_data['last_message_time'] = datetime.now().timestamp()
         # Если история пользователя не существует, создайте новую
         if 'history' not in user_data:
             user_data['history'] = []
@@ -388,10 +389,33 @@ async def on_startup(dp):
         BotCommand("imagine", "{prompt} draws an image"),
         # Добавьте здесь любые дополнительные команды
     ])
+async def check_inactive_users():
+    while True:
+        all_users_data = await dp.storage.get_data()
+        for user_id, user_data in all_users_data.items():
+            if 'last_message_time' not in user_data:
+                continue
+            last_message_time = datetime.fromtimestamp(user_data['last_message_time'])
+            if datetime.now() - last_message_time > timedelta(hours=24):  # if it's been 24 hours
+                # generate a message
+                chat_response = await openai.ChatCompletion.acreate(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {'role': 'system', 'content': 'The user has not interacted for 24 hours.'},
+                        {'role': 'system', 'content': 'You should remind about yourself.'}
+                    ]
+                )
+                response_text = chat_response['choices'][0]['message']['content']
+                # send a message
+                await dp.bot.send_message(chat_id=user_id, text=response_text)
+        await asyncio.sleep(3600)  # wait for an hour before checking again
+
 
 if __name__ == '__main__':
     if not Prompt.table_exists(): Prompt.create_table()
     if not ImageMidjourney.table_exists(): ImageMidjourney.create_table()
     #start Midjourney-Web-API/app.py
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
+    loop = asyncio.get_event_loop()
+    loop.create_task(check_inactive_users())
     executor.start_polling(dp, on_startup=on_startup)
