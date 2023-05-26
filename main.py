@@ -43,7 +43,7 @@ async def show_history(message: types.Message):
         text = await get_history(user_id)
         if text is None:
             text = 'История пуста'
-        await m.edit_text(text=text)
+        await m.edit_text(text=text[-4090:])
     except:
         traceback.print_exc()
         await m.edit_text('Не удалось получить ответ от Демиурга')
@@ -299,12 +299,13 @@ async def handle_message(message: types.Message):
             asyncio.create_task(draw_and_answer(prompt, user_id, ASSISTANT_NAME_SHORT))
             response_text = re.sub(r'draw\(".+?"\)', '', response_text)
         while '/draw' in response_text:
-            prompts = re.findall(r'\/draw (.+?)\/?$', response_text)
+            pattern = r'\/draw (.+?)\/?$'
+            prompts = re.findall(pattern, response_text)
             if not any(prompts):
                 break
             prompt = prompts[0]
             asyncio.create_task(draw_and_answer(prompt, user_id, ASSISTANT_NAME_SHORT))
-            response_text = re.sub(r'\/draw (.+?)\/$', '', response_text)
+            response_text = re.sub(pattern, '', response_text)
 
 
         # Отправьте ответ пользователю
