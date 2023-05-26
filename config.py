@@ -13,7 +13,7 @@ set_random_api_key()
 
 # Создайте экземпляры бота и диспетчера
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-storage = RedisStorage2()
+storage = RedisStorage2(prefix='demiurge')
 dp = Dispatcher(bot, storage=storage)
 
 

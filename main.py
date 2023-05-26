@@ -389,26 +389,39 @@ async def on_startup(dp):
         BotCommand("imagine", "{prompt} draws an image"),
         # Добавьте здесь любые дополнительные команды
     ])
+import redis
+
 async def check_inactive_users():
     while True:
-        all_users_data = await dp.storage.get_data()
-        for user_id, user_data in all_users_data.items():
+        # Ваш Redis сервер
+        r = redis.Redis(host='localhost', port=6379, db=0)
+
+        # Получите все ключи из Redis. Замените "your_prefix" на ваш префикс
+        all_keys = r.keys("demiurge*")
+
+        for key in all_keys:
+            # Достаём chat_id из ключа
+            chat_id = key.decode("utf-8").split(":")[1]
+            # Получаем данные пользователя из aiogram storage
+            user_data = await dp.storage.get_data(chat=chat_id)
+
             if 'last_message_time' not in user_data:
                 continue
             last_message_time = datetime.fromtimestamp(user_data['last_message_time'])
-            if datetime.now() - last_message_time > timedelta(hours=24):  # if it's been 24 hours
-                # generate a message
+            if datetime.now() - last_message_time > timedelta(hours=24):  # если прошло 24 часа
+                # генерируем сообщение
                 chat_response = await openai.ChatCompletion.acreate(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {'role': 'system', 'content': 'The user has not interacted for 24 hours.'},
-                        {'role': 'system', 'content': 'You should remind about yourself.'}
+                        {'role': 'system', 'content': 'Пользователь не взаимодействовал в течение 24 часов.'},
+                        {'role': 'system', 'content': 'Вы должны напомнить о себе.'}
                     ]
                 )
                 response_text = chat_response['choices'][0]['message']['content']
-                # send a message
-                await dp.bot.send_message(chat_id=user_id, text=response_text)
-        await asyncio.sleep(3600)  # wait for an hour before checking again
+                # отправляем сообщение
+                await dp.bot.send_message(chat_id=chat_id, text=response_text)
+        await asyncio.sleep(3600)  # ждём час перед следующей проверкой
+
 
 
 if __name__ == '__main__':
