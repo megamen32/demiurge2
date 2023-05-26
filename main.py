@@ -354,6 +354,7 @@ async def on_startup(dp):
 
 if __name__ == '__main__':
     if not Prompt.table_exists(): Prompt.create_table()
+    if not ImageMidjourney.table_exists(): ImageMidjourney.create_table()
     #start Midjourney-Web-API/app.py
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
     executor.start_polling(dp, on_startup=on_startup)
