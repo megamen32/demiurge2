@@ -1,4 +1,6 @@
 import functools
+import re
+import subprocess
 import tempfile
 import traceback
 
@@ -13,7 +15,9 @@ from aiogram.types import BotCommand
 import speech_recognition as sr
 
 import config
-from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT
+from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT,bot
+from datebase import Prompt
+from draw import draw_and_answer
 
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate
@@ -344,10 +348,12 @@ async def on_startup(dp):
         BotCommand("promt", "Edit gpt start promt"),
         BotCommand("draw_settings", "draw settings"),
         BotCommand("draw", "{prompt} draws an image"),
+        BotCommand("imagine", "{prompt} draws an image"),
         # Добавьте здесь любые дополнительные команды
     ])
 
 if __name__ == '__main__':
     if not Prompt.table_exists(): Prompt.create_table()
-
+    #start Midjourney-Web-API/app.py
+    subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
     executor.start_polling(dp, on_startup=on_startup)
