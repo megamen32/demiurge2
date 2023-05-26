@@ -10,7 +10,7 @@ async def process_queue():
     while True:
         task = await request_queue.get()
         try:
-            result = await agpt(task['params'])
+            result = await agpt(**task['params'])
             task['future'].set_result(result)
         except Exception as e:
             task['future'].set_exception(e)
