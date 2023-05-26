@@ -17,7 +17,7 @@ import speech_recognition as sr
 import config
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT,bot
 from datebase import Prompt
-from draw import draw_and_answer
+from draw import draw_and_answer, process_draw_commands
 
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate
@@ -257,6 +257,7 @@ async def text_to_speech2(text):
     await asyncio.get_running_loop().run_in_executor(None,
                                                      tts.save,(filename))
     return filename
+
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message):
 
@@ -291,21 +292,8 @@ async def handle_message(message: types.Message):
 
 
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
-        while 'draw("' in response_text:
-            prompts = re.findall(r'draw\("(.+?)"\)', response_text)
-            if not any(prompts):
-                break
-            prompt = prompts[0]
-            asyncio.create_task(draw_and_answer(prompt, user_id, ASSISTANT_NAME_SHORT))
-            response_text = re.sub(r'draw\(".+?"\)', '', response_text)
-        while '/draw' in response_text:
-            pattern = r'\/draw (.+?)\/?$'
-            prompts = re.findall(pattern, response_text)
-            if not any(prompts):
-                break
-            prompt = prompts[0]
-            asyncio.create_task(draw_and_answer(prompt, user_id, ASSISTANT_NAME_SHORT))
-            response_text = re.sub(pattern, '', response_text)
+        response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id)
+        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id)
 
 
         # Отправьте ответ пользователю

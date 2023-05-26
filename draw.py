@@ -265,3 +265,12 @@ async def handle_style_and_ratio(message: types.Message,state:FSMContext):
         await message.reply("Unknown option.")
     await state.finish()
     await dp.storage.set_data(chat=message.chat.id, data=user_data)
+def process_draw_commands(response_text, pattern,chat_id):
+    while True:
+        prompts = re.findall(pattern, response_text)
+        if not prompts:
+            break
+        for prompt in prompts:
+            asyncio.create_task(draw_and_answer(prompt, chat_id, config.ASSISTANT_NAME_SHORT))
+        response_text = re.sub(pattern, '', response_text)
+    return response_text
