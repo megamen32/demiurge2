@@ -29,7 +29,7 @@ async def generate_image_midjourney(prompt):
         async with session.get(url) as resp:
             response_bytes = await resp.read()
 
-    return io.BytesIO(response_bytes),url
+    return response_bytes,url
 
 async def upscale_image(file_name, number):
     url = f"http://localhost:5000/upscale"
@@ -43,7 +43,7 @@ async def upscale_image(file_name, number):
             if resp.status == 200:
                 print('Upscale successful!')
                 response_json = await resp.json()
-                upscaled_url = response_json["upscaled_image_url"]
+                upscaled_url = response_json["latest_image_url"]
             else:
                 print(f'Upscale error: {resp.status}')
                 upscaled_url = None
@@ -82,10 +82,11 @@ async def handle_imagine(message: types.Message):
             await msg.edit_text("An error occurred while generating the image.")
             return
 
-        kb = InlineKeyboardMarkup()
-        for _ in range(4):
-            btn = kb.add(InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_}_{img_db.id}"))
-        photo=await message.answer_photo(photo=img_data,caption=prompt,reply_markup=kb)
+        kb = InlineKeyboardMarkup(resize_keyboard=True)
+
+        btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_+1}_{img_db.id}") for _ in range(4)]
+        kb.row(*btns)
+        photo=await message.answer_photo(photo=io.BytesIO(img_data),caption=prompt,reply_markup=kb)
         await msg.delete()
     except:
         traceback.print_exc()
@@ -94,16 +95,19 @@ async def handle_imagine(message: types.Message):
 @dp.callback_query_handler(lambda c:c.data.startswith("imagine_"))
 async def handle_draw_callback(query: types.CallbackQuery):
     _,number,img_id = query.data.split("_")
+    number=int(number)
     img_db = ImageMidjourney.get(id=img_id)
-    await query.answer(f'... upscaling {img_db.prompt} {number}')
+    await query.answer(f'... upscaling {number}')
     msg=await query.message.reply(f'... upscaling {img_db.prompt} {number}')
     if img_db:
-        img_data = await upscale_image(img_db.filename(), number)
+        img_data=None
+        try:
+            img_data = await upscale_image(img_db.filename(), number)
+        except:
+            traceback.print_exc()
         if img_data:
             await query.message.answer_photo(photo=img_data,caption=img_db.prompt)
             await msg.delete()
         else:
             await msg.edit_text("An error occurred while upscalling the image.")
-
-    await query.message.edit_text(img_db.prompt)
 
