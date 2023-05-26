@@ -130,11 +130,12 @@ def create_style_keyboard(prompt):
             for style in horizontal_styles[i*width:(i+1)*width]
         ]
         kb.row(*buttons)
-    kb.add(types.InlineKeyboardButton(MIDJOURNEY, callback_data=(f'style_{prompt_db.id}_{MIDJOURNEY}')))
+
     buttons = [
         types.InlineKeyboardButton(ratio.lower().replace('ratio_',''), callback_data=f'ratio_{prompt_db.id}_{ratio}')
         for ratio in ratios
     ]
+    buttons.append(types.InlineKeyboardButton(MIDJOURNEY, callback_data=(f'style_{prompt_db.id}_{MIDJOURNEY}')))
     kb.row(*buttons)
 
     return kb
