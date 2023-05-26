@@ -11,7 +11,7 @@ from datebase import ImageMidjourney
 from draw import improve_prompt
 
 
-async def generate_image(prompt):
+async def generate_image_midjourney(prompt):
     payload = {
         "prompt": prompt
     }
@@ -58,7 +58,7 @@ async def upscale_image(file_name, number):
     return None
 
 @dp.message_handler(commands=['imagine'])
-async def handle_draw(message: types.Message):
+async def handle_imagine(message: types.Message):
     prompt = message.get_args()
     if not prompt:
         await message.reply("Please provide a description for the image.")
@@ -70,7 +70,7 @@ async def handle_draw(message: types.Message):
         asyncio.create_task( msg.edit_text(prompt))
         img_data=None
         try:
-            img_data, image_url = await generate_image(prompt)
+            img_data, image_url = await generate_image_midjourney(prompt)
             # Extract file name from the URL
 
             img_db=ImageMidjourney.create(prompt=prompt,url=image_url)

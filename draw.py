@@ -20,33 +20,32 @@ from datebase import Prompt
 from gpt import gpt_acreate
 
 imagine = None
-async def generate_image(prompt: str, user_id):
-    user_data = await dp.storage.get_data(chat=user_id)
-    style = Style[user_data.get('style', 'ANIME_V2')]
-    ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
-
-    return await gen_img(prompt, ratio, style)
 
 
 async def gen_img(prompt, ratio, style):
-    global imagine
-    if imagine is None:
-        imagine = AsyncImagine()
-    while True:
-        img_data_task = asyncio.create_task( imagine.sdprem(
-            prompt=prompt,
-            style=style,
-            ratio=ratio
-        ))
-        try:
-            img_data=await asyncio.wait_for(img_data_task,timeout=10)
-            if img_data is None:
+    if style in list(Style.__members__.keys()):
+        global imagine
+        if imagine is None:
+            imagine = AsyncImagine()
+        while True:
+            img_data_task = asyncio.create_task( imagine.sdprem(
+                prompt=prompt,
+                style=style,
+                ratio=ratio
+            ))
+            try:
+                img_data=await asyncio.wait_for(img_data_task,timeout=10)
+                if img_data is None:
+                    continue
+                break
+            except:
                 continue
-            break
-        except:
-            continue
+        return io.BytesIO(img_data)
+    else:
+         from imagine import generate_image_midjourney
+         img_data,img_url=await generate_image_midjourney(prompt)
 
-    return img_data
+         return img_data
 
 
 async def upscale_image(img_data):
@@ -151,60 +150,30 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     else:
         await query.answer("Unknown option.")
     await dp.storage.set_data(chat=query.message.chat.id, data=user_data)
-    msg=await query.message.reply(f'Imagining...{prompt} with {text}')
-    try:
-        img_data =await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
-        if img_data is None:
-            await msg.edit_text("An error occurred while generating the image.")
-            return
-
-        img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}_{text}.jpeg'
-
-
-        photo = await query.message.answer_photo(photo=img_file, caption=f'{prompt} -{text}')
-        await msg.delete()
-        msg = None
-        img_data = await upscale_image(img_data)
-        if img_data is None:
-            await query.message.reply("An error occurred uppscaling  the image.")
-            return
-
-        img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}-{text}-upscale.jpeg'
-        photo2 = await query.message.answer_photo(photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
-        await photo.delete()
-    except:
-        traceback.print_exc()
-        if msg is None:
-            await query.message.reply("An error occurred while imaging the image.")
-        else:
-            await msg.edit_text('An error occurred while imaging the image.')
+    await draw_and_answer(prompt,query.message.chat.id,query.from_user.full_name or query.from_user.username)
 
 async def draw_and_answer(prompt,chat_id,name):
     user_data = await dp.storage.get_data(chat=chat_id)
-    msg=await bot.send_message(chat_id, "Creating image...")
+    ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
+    style = Style[user_data.get('style', 'ANIME_V2')]
+    msg=await bot.send_message(chat_id, f"Creating image... {style}\n{ratio} \n{prompt}")
     try:
         prompt=await improve_prompt(prompt,chat_id,name)
         asyncio.create_task(msg.edit_text(prompt))
-        img_data = await gen_img(prompt, Ratio[user_data.get('ratio', 'RATIO_4X3')], Style[user_data.get('style', 'ANIME_V2')])
-        if img_data is None:
+
+        img_file = await gen_img(prompt, ratio, style)
+        if img_file is None:
             await msg.edit_text("An error occurred while generating the image.")
             return
-
-        img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}.jpeg'
 
         photo = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=f'{prompt}')
         await msg.delete()
         msg = None
-        img_data = await upscale_image(img_data)
-        if img_data is None:
+        img_file = await upscale_image(img_file)
+        if img_file is None:
             await bot.send_message("An error occurred uppscaling  the image.")
             return
 
-        img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}-upscale.jpeg'
         photo2 = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
         await photo.delete()
     except:
@@ -220,34 +189,7 @@ async def handle_draw(message: types.Message):
     if not prompt:
         await message.reply("Please provide a description for the image.")
         return
-
-    msg = await message.reply("Creating image...")
-    try:
-        prompt=await improve_prompt(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
-        asyncio.create_task( msg.edit_text(prompt))
-        img_data = await generate_image(prompt,message.chat.id)
-
-        if img_data is None:
-            await msg.edit_text("An error occurred while generating the image.")
-            return
-
-        img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}.jpeg'
-
-        photo=await message.answer_photo(photo=img_file,caption=prompt)
-        await msg.delete()
-        img_data=await upscale_image(img_data)
-        if img_data is None:
-            await message.answer("An error occurred uppscaling  the image.")
-            return
-
-        img_file = io.BytesIO(img_data)
-        img_file.name = f'{prompt}-upscale.jpeg'
-        photo2 = await message.answer_photo(photo=img_file, caption=prompt,reply_markup=create_style_keyboard(prompt))
-        await photo.delete()
-    except:
-        traceback.print_exc()
-        await message.answer('An error occurred while generating the image.')
+    await draw_and_answer(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
 
 
 def create_settings_keyboard():
