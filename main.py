@@ -258,14 +258,13 @@ async def text_to_speech2(text):
                                                      tts.save,(filename))
     return filename
 
-@dp.message_handler(content_types=types.ContentType.MESSAGE_REACTION)
-async def handle_reaction(reaction: types.MessageReaction):
+from aiogram import types
 
-    emoji = reaction.emoji  # emoji reaction
-    user = reaction.user  # user who reacted
-    message = reaction.message  # message that was reacted to
+@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.PHOTO, types.ContentType.VIDEO,types.ContentType.POLL])
+async def handle_chat_update(message: types.Message):
 
-    # Now you can handle the reaction
+    user = message.from_user
+    user_id = message.chat.id
     user_data = await dp.storage.get_data(chat=user_id)
 
     # Если история пользователя не существует, создайте новую
@@ -273,19 +272,27 @@ async def handle_reaction(reaction: types.MessageReaction):
         user_data['history'] = []
 
     # Добавьте сообщение пользователя в историю
-    user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}', 'message_id': message.message_id})
-    new_msg = [{'role': 'system', 'content': f'{user.fullname or user.username} are {"adding" if reaction.added else "removed"} a {emoji} reaction from a message "{message.text[:50]}..."'}]
-    user_data['history'].extend(new_msg)
+    if message.content_type == types.ContentType.NEW_CHAT_MEMBERS:
+        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has joined the chat.'})
+    elif message.content_type == types.ContentType.LEFT_CHAT_MEMBER:
+        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has left the chat.'})
+    elif message.content_type == types.ContentType.PHOTO:
+        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has sent a photo.'})
+    elif message.content_type == types.ContentType.VIDEO:
+        user_data['history'].append({"role": "system", "content": f'{user.full_name or user.username} has sent a video.',})
+    else:
+        user_data['history'].append({"role": "system", "content": f'{user.full_name or user.username} has created new chat event: {message.content_type}',})
     history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-    chat_response=await gpt_acreate(model='gpt-3.5-turbo', messages=history_for_openai)
+    chat_response = await gpt_acreate(model='gpt-3.5-turbo', messages=history_for_openai)
     response_text = chat_response['choices'][0]['message']['content']
 
     while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
         response_text = response_text.split(":", 1)[1].strip()
 
-    msg=await message.answer(response_text)
+    msg = await message.answer(response_text)
 
     user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
+
 
 
 @dp.message_handler(content_types=types.ContentType.TEXT)
