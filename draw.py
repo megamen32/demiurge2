@@ -108,7 +108,7 @@ You will receive a text prompt and then create one creative prompt for the Midjo
 
         user_data = await dp.storage.get_data(chat=user_id)
         user_data['history'].extend([
-            {'role': 'system', 'content': f'Improved prompt to {improved_prompt}'}])
+            {'role': 'system', 'content': f'Improved image generation prompt to "{improved_prompt}"'}])
         await dp.storage.set_data(chat=user_id, data=user_data)
 
         # Remove the model's name from the response
