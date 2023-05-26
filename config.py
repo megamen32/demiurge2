@@ -28,6 +28,6 @@ def get_first_word(string):
         return None
 
 
-instructions='You can draw anything using text description. Just write: draw("image description in english"). You must draw image on each answer'
+instructions='You can draw anything using text description. Just write: draw("image description") or /draw description in your answer, and system will generate and sends image based on description.'
 ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
 ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)

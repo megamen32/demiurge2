@@ -69,11 +69,6 @@ async def improve_prompt(prompt, user_id,name):
     # If the language is not English, translate and improve it
     if lang == 'ru' or lang =='uk' or lang=='mk':
         user_data = await dp.storage.get_data(chat=user_id)
-        if 'history' in user_data:
-
-            user_data['history'].extend([
-            {"role": "user",
-             "content": f'{name}: /draw {prompt}'}])
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         chat_response = await gpt_acreate(
@@ -96,7 +91,7 @@ Here are 2 example prompts. The first is artistic, the last is photo. Use these 
 •	Digital art of an enchanting piano recital set within a serene forest clearing, a grand piano as the centerpiece, the musician, a young woman with flowing locks and an elegant gown, gracefully playing amidst the vibrant green foliage and deep brown tree trunks, her fingers dancing across the keys with an air of passion and skill, soft pastel colors adding a touch of whimsy, warm, dappled sunlight filtering through the leaves, casting a dreamlike glow on the scene, a harmonious fusion of music and nature, eye-level perspective immersing the viewer in the tranquil woodland setting, a captivating blend of art and the natural world --ar 2:1•	Detailed charcoal drawing of a gentle elderly woman, with soft and intricate shading in her wrinkled face, capturing the weathered beauty of a long and fulfilling life. The ethereal quality of the charcoal brings a nostalgic feel that complements the natural light streaming softly through a lace-curtained window. In the background, the texture of the vintage furniture provides an intricate carpet of detail, with a monochromatic palette serving to emphasize the subject of the piece. This charcoal drawing imparts a sense of tranquillity and wisdom with an authenticity that captures the subject's essence.
 •	Astounding astrophotography image of the Milky Way over Stonehenge, emphasizing the human connection to the cosmos across time. The enigmatic stone structure stands in stark silhouette with the awe-inspiring night sky, showcasing the complexity and beauty of our galaxy. The contrast accentuates the weathered surfaces of the stones, highlighting their intricate play of light and shadow. Sigma Art 14mm f/1.8, ISO 3200, f/1.8, 15s --ar 16:9 
 
-You have receive a text prompt from user, create one creative prompt for the Midjourney AI art generator using the best practices mentioned above. Do not include explanations in your response. List one prompt on English language with correct syntax without unnecessary words. '''}
+You will receive a text prompt and then create one creative prompt for the Midjourney AI art generator using the best practices mentioned above. Do not include explanations in your response. List one prompt on English language with correct syntax without unnecessary words. Promt is: '''+prompt}
             ],
             max_tokens=200
         )
@@ -200,7 +195,7 @@ async def draw_and_answer(prompt,chat_id,name):
             kb.row(*btns)
 
 
-        photo2 = await bot.send_photo(chat_id=chat_id,photo=io.BytesIO(img_file), caption=f'{prompt}{style}{ratio}', reply_markup=kb)
+        photo2 = await bot.send_photo(chat_id=chat_id,photo=io.BytesIO(img_file), caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb)
         if photo is not None:
             await photo.delete()
     except:
