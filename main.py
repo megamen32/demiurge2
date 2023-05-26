@@ -99,7 +99,6 @@ async def get_summary( user_id):
     history_text = await get_history(user_id)
     if history_text is not None:
         # Сформируйте запрос на суммирование к GPT-3.5
-        config.set_random_api_key()
         chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=[{'role': 'system', 'content': f"Your memory is full, you need to summarize dialogue:\n{history_text}"}]
@@ -270,7 +269,6 @@ async def handle_message(message: types.Message):
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         # Сформируйте ответ от GPT-3.5
-        config.set_random_api_key()
         chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=[
