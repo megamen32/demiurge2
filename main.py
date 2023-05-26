@@ -260,7 +260,7 @@ async def text_to_speech2(text):
 
 from aiogram import types
 
-@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.PHOTO, types.ContentType.VIDEO,types.ContentType.POLL])
+@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.PHOTO, types.ContentType.VIDEO,types.ContentType.POLL,types.ContentType.PINNED_MESSAGE,types.ContentType.DELETE_CHAT_PHOTO,types.ContentType.NEW_CHAT_PHOTO,types.ContentType.NEW_CHAT_TITLE,types.ContentType.DICE,types.ContentType.CONTACT])
 async def handle_chat_update(message: types.Message):
 
     user = message.from_user
