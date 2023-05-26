@@ -104,7 +104,7 @@ You will receive a text prompt and then create one creative prompt for the Midjo
         # Поиск английского текста с использованием регулярного выражения
         improved_prompt = ' '.join(re.findall(r'\b[A-Za-z]+\b', cleaned_text))
         if improved_prompt.startswith('draw'):
-            improved_prompt.replace('draw','',1)
+            improved_prompt=improved_prompt.replace('draw','',1)
 
         user_data = await dp.storage.get_data(chat=user_id)
         user_data['history'].extend([
