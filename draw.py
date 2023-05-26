@@ -231,8 +231,8 @@ async def handle_draw(message: types.Message):
         img_file = io.BytesIO(img_data)
         img_file.name = f'{prompt}.jpeg'
 
-        await msg.delete()
         photo=await message.answer_photo(photo=img_file,caption=prompt)
+        await msg.delete()
         img_data=await upscale_image(img_data)
         if img_data is None:
             await message.answer("An error occurred uppscaling  the image.")
