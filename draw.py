@@ -195,7 +195,7 @@ async def draw_and_answer(prompt,chat_id,name):
 
         photo2 = await bot.send_photo(chat_id=chat_id,photo=io.BytesIO(img_file), caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb)
         user_data = await dp.storage.get_data(chat=chat_id)
-        user_data['history'].append({'role':'system','content':f'Received /draw command. Generates image based on description with {style} style and sends to chat.'})
+        user_data['history'].append({'role':'system','content':f'Finished /draw command. Generated image based on "{prompt}" with {style} style and sent to chat.'})
         await dp.storage.set_data(chat=chat_id,data=user_data)
         if photo is not None:
             await photo.delete()
