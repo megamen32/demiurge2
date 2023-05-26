@@ -260,7 +260,7 @@ async def text_to_speech2(text):
 
 from aiogram import types
 
-@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.PHOTO, types.ContentType.VIDEO,types.ContentType.POLL,types.ContentType.PINNED_MESSAGE,types.ContentType.DELETE_CHAT_PHOTO,types.ContentType.NEW_CHAT_PHOTO,types.ContentType.NEW_CHAT_TITLE,types.ContentType.DICE,types.ContentType.CONTACT])
+@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.PHOTO, types.ContentType.VIDEO,types.ContentType.POLL,types.ContentType.PINNED_MESSAGE,types.ContentType.DELETE_CHAT_PHOTO,types.ContentType.NEW_CHAT_PHOTO,types.ContentType.NEW_CHAT_TITLE,types.ContentType.DICE,types.ContentType.CONTACT,types.ContentType.STICKER])
 async def handle_chat_update(message: types.Message):
 
     user = message.from_user
@@ -280,6 +280,8 @@ async def handle_chat_update(message: types.Message):
         user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has sent a photo.'})
     elif message.content_type == types.ContentType.VIDEO:
         user_data['history'].append({"role": "system", "content": f'{user.full_name or user.username} has sent a video.',})
+    elif message.content_type == types.ContentType.STICKER:
+        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has sent a sticker that represents "{message.sticker.emoji}" from sticker pack with name "{message.sticker.set_name}"'})
     else:
         user_data['history'].append({"role": "system", "content": f'{user.full_name or user.username} has created new chat event: {message.content_type}',})
     history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
