@@ -258,6 +258,36 @@ async def text_to_speech2(text):
                                                      tts.save,(filename))
     return filename
 
+@dp.message_handler(content_types=types.ContentType.MESSAGE_REACTION)
+async def handle_reaction(reaction: types.MessageReaction):
+
+    emoji = reaction.emoji  # emoji reaction
+    user = reaction.user  # user who reacted
+    message = reaction.message  # message that was reacted to
+
+    # Now you can handle the reaction
+    user_data = await dp.storage.get_data(chat=user_id)
+
+    # Если история пользователя не существует, создайте новую
+    if 'history' not in user_data:
+        user_data['history'] = []
+
+    # Добавьте сообщение пользователя в историю
+    user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}', 'message_id': message.message_id})
+    new_msg = [{'role': 'system', 'content': f'{user.fullname or user.username} are {"adding" if reaction.added else "removed"} a {emoji} reaction from a message "{message.text[:50]}..."'}]
+    user_data['history'].extend(new_msg)
+    history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+    chat_response=await gpt_acreate(model='gpt-3.5-turbo', messages=history_for_openai)
+    response_text = chat_response['choices'][0]['message']['content']
+
+    while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
+        response_text = response_text.split(":", 1)[1].strip()
+
+    msg=await message.answer(response_text)
+
+    user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
+
+
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message):
 
