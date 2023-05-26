@@ -16,6 +16,8 @@ import config
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT
 
 # Установите ваш ключ OpenAI
+from gpt import process_queue, gpt_acreate
+
 openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
@@ -98,7 +100,7 @@ async def get_summary( user_id):
     if history_text is not None:
         # Сформируйте запрос на суммирование к GPT-3.5
         config.set_random_api_key()
-        chat_response = await openai.ChatCompletion.acreate(
+        chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=[{'role': 'system', 'content': f"Your memory is full, you need to summarize dialogue:\n{history_text}"}]
         )
@@ -269,7 +271,7 @@ async def handle_message(message: types.Message):
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         # Сформируйте ответ от GPT-3.5
         config.set_random_api_key()
-        chat_response = await openai.ChatCompletion.acreate(
+        chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=[
                          {'role': 'system', 'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
@@ -336,6 +338,7 @@ def count_tokens(history):
 
 async def on_startup(dp):
     # Установите здесь ваши команды
+    asyncio.create_task(process_queue())
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
         BotCommand("summarize", "Суммировать историю диалога"),
@@ -348,4 +351,5 @@ async def on_startup(dp):
 
 if __name__ == '__main__':
     if not Prompt.table_exists(): Prompt.create_table()
+
     executor.start_polling(dp, on_startup=on_startup)

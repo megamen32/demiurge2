@@ -17,6 +17,7 @@ from aiogram import types
 
 from config import dp, bot
 from datebase import Prompt
+from gpt import gpt_acreate
 
 imagine = None
 async def generate_image(prompt: str, user_id):
@@ -74,7 +75,7 @@ async def improve_prompt(prompt, user_id,name):
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         config.set_random_api_key()
-        chat_response = await openai.ChatCompletion.acreate(
+        chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
             messages=  [
                 {"role": "system",
