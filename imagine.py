@@ -92,7 +92,7 @@ async def handle_draw(message: types.Message):
         await message.answer('An error occurred while generating the image.')
 
 @dp.callback_query_handler(lambda c:c.data.startswith("imagine_"))
-def handle_draw_callback(query: types.CallbackQuery):
+async def handle_draw_callback(query: types.CallbackQuery):
     _,number,img_id = query.data.split("_")
     img_db = ImageMidjourney.get(id=img_id)
     await query.answer(f'... upscaling {img_db.prompt} {number}')
@@ -101,7 +101,7 @@ def handle_draw_callback(query: types.CallbackQuery):
         img_data = await upscale_image(img_db.filename(), number)
         if img_data:
             await query.message.answer_photo(photo=img_data,caption=img_db.prompt)
-            msg.delete()
+            await msg.delete()
         else:
             await msg.edit_text("An error occurred while upscalling the image.")
 
