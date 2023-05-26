@@ -6,6 +6,7 @@ import langdetect
 import openai
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import InlineKeyboardButton
 
 import config
 from Imaginepy.imaginepy import Imagine, AsyncImagine
@@ -16,14 +17,16 @@ import io
 from aiogram import types
 
 from config import dp, bot
-from datebase import Prompt
+from datebase import Prompt, ImageMidjourney
 from gpt import gpt_acreate
+
+MIDJOURNEY = 'MIDJOURNEY'
 
 imagine = None
 
 
 async def gen_img(prompt, ratio, style):
-    if style in list(Style.__members__.keys()):
+    if isinstance(style,Style) :
         global imagine
         if imagine is None:
             imagine = AsyncImagine()
@@ -40,12 +43,12 @@ async def gen_img(prompt, ratio, style):
                 break
             except:
                 continue
-        return io.BytesIO(img_data)
+        return img_data,None
     else:
          from imagine import generate_image_midjourney
          img_data,img_url=await generate_image_midjourney(prompt)
 
-         return img_data
+         return img_data,img_url
 
 
 async def upscale_image(img_data):
@@ -82,7 +85,7 @@ async def improve_prompt(prompt, user_id,name):
 
 Based on the above structure, create a detailed narrative of the scene. Generate only one variant in english language. Subject of the prompt is: '''+prompt}
             ],
-            max_tokens=100
+            max_tokens=200
         )
 
         # Extract the model's response
@@ -127,8 +130,9 @@ def create_style_keyboard(prompt):
             for style in horizontal_styles[i*width:(i+1)*width]
         ]
         kb.row(*buttons)
+    kb.add(types.InlineKeyboardButton(MIDJOURNEY, callback_data=(f'style_{prompt_db.id}_{MIDJOURNEY}')))
     buttons = [
-        types.InlineKeyboardButton(ratio.lower(), callback_data=f'ratio_{prompt_db.id}_{ratio}')
+        types.InlineKeyboardButton(ratio.lower().replace('ratio_',''), callback_data=f'ratio_{prompt_db.id}_{ratio}')
         for ratio in ratios
     ]
     kb.row(*buttons)
@@ -141,7 +145,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     user_data = await dp.storage.get_data(chat=query.message.chat.id)
     _,id,text = query.data.split('_',2)
     prompt=Prompt.get_by_id(id).text
-    if text in Style.__members__:
+    if text in Style.__members__ or text in [MIDJOURNEY]:
         user_data['style'] = text
         await query.answer(f"Set style to {text}.")
     elif text in Ratio.__members__:
@@ -155,27 +159,36 @@ async def handle_ratio_callback(query: types.CallbackQuery):
 async def draw_and_answer(prompt,chat_id,name):
     user_data = await dp.storage.get_data(chat=chat_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
-    style = Style[user_data.get('style', 'ANIME_V2')]
-    msg=await bot.send_message(chat_id, f"Creating image... {style}\n{ratio} \n{prompt}")
+    try:
+        style = Style[user_data.get('style', 'ANIME_V2')]
+    except:
+        style=user_data.get('style', 'ANIME_V2')
+    msg=await bot.send_message(chat_id=chat_id,text= f"Creating image... {style}\n{ratio} \n{prompt}")
     try:
         prompt=await improve_prompt(prompt,chat_id,name)
         asyncio.create_task(msg.edit_text(prompt))
 
-        img_file = await gen_img(prompt, ratio, style)
+        img_file,url = await gen_img(prompt, ratio, style)
         if img_file is None:
             await msg.edit_text("An error occurred while generating the image.")
             return
 
-        photo = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=f'{prompt}')
-        await msg.delete()
-        msg = None
-        img_file = await upscale_image(img_file)
-        if img_file is None:
-            await bot.send_message("An error occurred uppscaling  the image.")
-            return
 
-        photo2 = await bot.send_photo(chat_id=chat_id,photo=img_file, caption=img_file.name, reply_markup=create_style_keyboard(prompt))
-        await photo.delete()
+        photo=None
+        kb=create_style_keyboard(prompt)
+        if isinstance(style,Style):
+            photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}')
+            img_file = await upscale_image(img_file)
+        else:
+            img_db = ImageMidjourney.create(prompt=prompt, url=url)
+
+            btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in range(4)]
+            kb.row(*btns)
+
+
+        photo2 = await bot.send_photo(chat_id=chat_id,photo=io.BytesIO(img_file), caption=f'{prompt}{style}{ratio}', reply_markup=kb)
+        if photo is not None:
+            await photo.delete()
     except:
         traceback.print_exc()
         if msg is None:
