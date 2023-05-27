@@ -40,7 +40,7 @@ async def change_role(message: types.Message):
     data['ASSISTANT_NAME_SHORT'] = get_first_word(text)
 
     # Сохранение обновленных настроек
-    await dp.storage.set_data(chat=message.chat.id)
+    await dp.storage.set_data(chat=message.chat.id,data=data)
 
     await message.reply(f'Now i am {data["ASSISTANT_NAME_SHORT"]}:\n' + text)
 
