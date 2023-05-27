@@ -73,8 +73,7 @@ async def handle_imagine(message: types.Message):
         user_data['history'].extend([
             {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
         await dp.storage.set_data(chat=chat_id,data=user_data)
-        prompt = await improve_prompt(prompt, message.chat.id,
-                                      message.from_user.full_name or message.from_user.username)
+        prompt = await improve_prompt(prompt,chat_id)
         asyncio.create_task( msg.edit_text(prompt))
         img_data=None
         try:

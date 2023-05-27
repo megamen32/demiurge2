@@ -59,7 +59,7 @@ async def upscale_image(img_data):
     return img_data
 
 
-async def improve_prompt(prompt, user_id,name):
+async def improve_prompt(prompt, chat_id):
     # Detect the language of the prompt
     try:
         lang = langdetect.detect(prompt)
@@ -68,7 +68,7 @@ async def improve_prompt(prompt, user_id,name):
 
     # If the language is not English, translate and improve it
     if lang == 'ru' or lang =='uk' or lang=='mk':
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data = await dp.storage.get_data(chat=chat_id)
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in history]
         chat_response = await gpt_acreate(
@@ -106,10 +106,10 @@ You will receive a text prompt and then create one creative prompt for the Midjo
         if improved_prompt.startswith('draw'):
             improved_prompt=improved_prompt.replace('draw','',1)
 
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data = await dp.storage.get_data(chat=chat_id)
         user_data['history'].extend([
             {'role': 'system', 'content': f'Improved image generation prompt to "{improved_prompt}"'}])
-        await dp.storage.set_data(chat=user_id, data=user_data)
+        await dp.storage.set_data(chat=chat_id, data=user_data)
 
         # Remove the model's name from the response
         improved_prompt = re.sub(r'^.*?:', '', improved_prompt).strip()
@@ -161,9 +161,9 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     else:
         await query.answer("Unknown option.")
     await dp.storage.set_data(chat=query.message.chat.id, data=user_data)
-    await draw_and_answer(prompt,query.message.chat.id,query.from_user.full_name or query.from_user.username)
+    await draw_and_answer(prompt,query.message.chat.id)
 
-async def draw_and_answer(prompt,chat_id,name):
+async def draw_and_answer(prompt,chat_id):
     user_data = await dp.storage.get_data(chat=chat_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
     try:
@@ -172,7 +172,7 @@ async def draw_and_answer(prompt,chat_id,name):
         style=user_data.get('style', 'ANIME_V2')
     msg=await bot.send_message(chat_id=chat_id,text= f"Creating image... {style}\n{ratio} \n{prompt}")
     try:
-        prompt=await improve_prompt(prompt,chat_id,name)
+        prompt=await improve_prompt(prompt,chat_id)
         asyncio.create_task(msg.edit_text(prompt))
 
         img_file,url = await gen_img(prompt, ratio, style)
@@ -217,7 +217,7 @@ async def handle_draw(message: types.Message):
     user_data['history'].extend([
         {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {prompt}'}])
     await dp.storage.set_data(chat=chat_id, data=user_data)
-    await draw_and_answer(prompt,message.chat.id,message.from_user.full_name or message.from_user.username)
+    await draw_and_answer(prompt,message.chat.id)
 
 
 def create_settings_keyboard():
@@ -271,6 +271,6 @@ def process_draw_commands(response_text, pattern,chat_id):
         if not prompts:
             break
         for prompt in prompts:
-            asyncio.create_task(draw_and_answer(prompt, chat_id, config.ASSISTANT_NAME_SHORT))
+            asyncio.create_task(draw_and_answer(prompt, chat_id))
         response_text = re.sub(pattern, '', response_text)
     return response_text

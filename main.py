@@ -31,10 +31,18 @@ MAX_HISTORY = 2048
 
 @dp.message_handler(commands=['promt'])
 async def change_role(message: types.Message):
-    text=message.text.split(' ',1)[-1]
-    config.ASSISTANT_NAME =text
-    config.ASSISTANT_NAME_SHORT = get_first_word(config.ASSISTANT_NAME)
-    await message.reply(f'Now i am {config.ASSISTANT_NAME_SHORT}:\n' + text)
+    # Получение настроек для этого чата
+    data = await dp.storage.get_data(chat=message.chat.id)
+
+    # Обновление настроек
+    text = message.text.split(' ', 1)[-1]
+    data['ASSISTANT_NAME'] = text
+    data['ASSISTANT_NAME_SHORT'] = get_first_word(text)
+
+    # Сохранение обновленных настроек
+    await dp.storage.set_data(chat=message.chat.id)
+
+    await message.reply(f'Now i am {data["ASSISTANT_NAME_SHORT"]}:\n' + text)
 
 @dp.message_handler(commands=['history'])
 async def show_history(message: types.Message):
@@ -163,36 +171,7 @@ def recognize_old(file_id):
     return text
 
 
-async def handle_text_message(user_id: int, user_name: str, text: str, message_id: int = None):
-    user_data = await dp.storage.get_data(chat=user_id)
 
-    # Если история пользователя не существует, создайте новую
-    if 'history' not in user_data:
-        user_data['history'] = []
-
-    # Добавьте сообщение пользователя в историю
-    user_data['history'].append({"role": "user", "content": f'{user_name}:{text}', 'message_id': message_id})
-
-    # Создаем новую историю, содержащую только необходимые поля
-    history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-
-    # Сформируйте ответ от GPT-3.5
-    chat_response = await openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{'role': 'system', 'content': ASSISTANT_NAME}] + history_for_openai
-    )
-
-    # Добавьте ответ бота в историю
-    user_data['history'].append(
-        {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{chat_response['choices'][0]['message']['content']}"})
-
-    # Ограничьте историю MAX_TOKENS_COUNT токенами
-    while count_tokens(user_data['history']) > MAX_HISTORY:
-        await shorten_history(user_data, user_id)
-
-    await dp.storage.set_data(chat=user_id, data=user_data)
-
-    return chat_response['choices'][0]['message']['content']
 from imagine import *
 @dp.edited_message_handler(content_types=types.ContentType.TEXT)
 async def handle_edited_message(message: types.Message):
@@ -293,7 +272,7 @@ async def handle_chat_update(message: types.Message):
         response_text = response_text.split(":", 1)[1].strip()
 
     msg = await message.answer(response_text)
-
+    ASSISTANT_NAME_SHORT=user_data.get('ASSISTANT_NAME_SHORT',config.ASSISTANT_NAME_SHORT)
     user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
 
 
@@ -313,6 +292,7 @@ async def handle_message(message: types.Message):
         # Добавьте сообщение пользователя в историю
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+        ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
         # Сформируйте ответ от GPT-3.5
         chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
@@ -328,9 +308,7 @@ async def handle_message(message: types.Message):
         while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
             response_text = response_text.split(":", 1)[1].strip()
 
-
-
-
+        ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
         response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id)
         response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id)
@@ -349,7 +327,7 @@ async def handle_message(message: types.Message):
                         await message.reply_voice(voice= audio,caption=response_text[:1024])
                     await msg.delete()
             except:traceback.print_exc()
-            #await dp.storage.set_data(chat=user_id, data=user_data)
+            #await dp.storage.set_data(chat=chat_id, data=user_data)
         else:
             await msg.delete()
 
