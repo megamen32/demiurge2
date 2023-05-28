@@ -125,7 +125,7 @@ async def handle_imagine(message: types.Message):
     msg=await message.reply('loading news and trends>>>')
     tags=trends.get_tags()
     news=trends.get_news()
-    text='\n'.join([f'{n}' for n in news])+'\n'
+    text='\n'.join([f'{n}' for n in news])+'\n\n'
     text+='\n'.join([f'{n}' for n in tags])
 
     await msg.edit_text(text)
