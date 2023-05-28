@@ -122,9 +122,11 @@ async def handle_draw_callback(query: types.CallbackQuery):
 
 @dp.message_handler(commands=['trends'])
 async def handle_imagine(message: types.Message):
-    msg=await message.reply('loading news and trends>>>')
-    tags=trends.get_tags()
-    news=trends.get_news()
+    msg=await message.reply('loading news and trends...')
+    loop=asyncio.get_running_loop()
+    tags=loop.run_in_executor(None,trends.get_tags)
+    news=loop.run_in_executor(None,trends.get_news)
+    tags,news=await asyncio.gather(tags,news)
     text='\n'.join([f'{n}' for n in news])+'\n\n'
     text+='\n'.join([f'{n}' for n in tags])
 

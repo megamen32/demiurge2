@@ -373,6 +373,7 @@ async def on_startup(dp):
         BotCommand("draw_settings", "draw settings"),
         BotCommand("draw", "{prompt} draws an image"),
         BotCommand("imagine", "{prompt} draws an image"),
+        BotCommand("trends", "get all news and trends"),
         # Добавьте здесь любые дополнительные команды
     ])
 import redis
