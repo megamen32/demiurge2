@@ -28,6 +28,9 @@ def get_first_word(string):
         return None
 
 
-instructions='You can generate any image using text description. Just write: "/draw image description" in your answer, and system will generate and sends image based on description. You can use several commands in one message.'
+instructions='You can generate any image using text description. Just write: "/draw image description" in your answer, and system will generate and sends image based on description.' \
+              'You can open any webpage you want and extract all text from it. Command is: /web url' \
+              'You can search any information on web and extract several search results from it. Command is: /search query' \
+             'You can use several commands in one message.'
 ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
 ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)

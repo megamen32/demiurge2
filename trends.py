@@ -7,7 +7,7 @@ def get_news(text:str=' '):
     result = googlenews.result()
     trends=[]
     for article in result:
-        trends.append(article['title'].strip('...')+article['desc'])
+        trends.append(article['title'].strip('...')+' '+article['desc']+'\n'+article['url'])
     return trends
 
 def get_tags():

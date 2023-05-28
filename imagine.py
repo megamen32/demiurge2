@@ -119,8 +119,27 @@ async def handle_draw_callback(query: types.CallbackQuery):
         else:
             await msg.edit_text("An error occurred while upscalling the image.")
 
+@dp.message_handler(commands=['web'])
+async def handle_imagine(message: types.Message):
+    msg=await message.reply('...')
+    try:
+        promt=message.get_args()
+        from newspaper import Article
 
-@dp.message_handler(commands=['trends'])
+        url = promt
+        article = Article(url)
+
+        article.download()
+        article.parse()
+
+        await msg.edit_text(article.text)
+        message.text=f'Скинул сайт {url}, дата публикации {article.publish_date}, Авторы :{", ".join(article.authors)} вот содержимое: {article.text}'
+        from main import handle_message
+        return await handle_message(message)
+    except:
+        traceback.print_exc()
+        await msg.edit_text('Не удалось скачать сайт')
+@dp.message_handler(commands=['search'])
 async def handle_imagine(message: types.Message):
     msg=await message.reply('loading news and trends...')
     loop=asyncio.get_running_loop()
