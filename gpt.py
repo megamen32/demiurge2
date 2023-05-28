@@ -3,6 +3,8 @@ import asyncio
 
 import openai
 from aiolimiter import AsyncLimiter
+from openai.error import RateLimitError
+
 import config
 request_queue = asyncio.Queue()
 
@@ -26,8 +28,15 @@ rate_limiter = AsyncLimiter(3, 60)
 async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
     async with rate_limiter:
-        config.set_random_api_key()
-        result = await openai.ChatCompletion.acreate(**params)
+        while True:
+            try:
+                config.set_random_api_key()
+                result = await openai.ChatCompletion.acreate(**params)
+                return result
+            except RateLimitError:
+                await asyncio.sleep(20)
+                continue
+
     return result
 
 

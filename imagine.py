@@ -122,12 +122,13 @@ async def handle_draw_callback(query: types.CallbackQuery):
 
 @dp.message_handler(commands=['trends'])
 async def handle_imagine(message: types.Message):
+    msg=await message.reply('loading news and trends>>>')
     tags=trends.get_tags()
     news=trends.get_news()
-    text='\n'.join([f'{n}' for n in news])
-    text+=', #'.join([f'{n}' for n in tags])
+    text='\n'.join([f'{n}' for n in news])+'\n'
+    text+='\n'.join([f'{n}' for n in tags])
 
-    await message.reply(text)
-    message.text=f'Вот все новости за сегодня и популярные темы, дай анализ {text}'
+    await msg.edit_text(text)
+    message.text=f'Вот все главные новости за сегодня и популярные темы, дай анализ:\n {text}'
     from main import handle_message
     return await handle_message(message)

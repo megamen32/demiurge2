@@ -6,3 +6,5 @@ gTTS
 peewee
 openai-whisper
 aiolimiter
+pytrends
+GoogleNews

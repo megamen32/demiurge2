@@ -111,14 +111,14 @@ async def summarize_history(message: types.Message):
 async def get_summary( user_id):
     history_text = await get_history(user_id)
     user_data=await dp.storage.get_data(chat=user_id)
-    ASSISTANT_NAME=user_id.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
+    ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
     history_for_openai =[ {'role': 'system', 'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
                         ] +[{"role": item["role"], "content": item["content"]} for item in user_data['history']]
     if history_text is not None:
         # Сформируйте запрос на суммирование к GPT-3.5
         chat_response = await gpt_acreate(
             model="gpt-3.5-turbo",
-            messages=history_for_openai+[{'role': 'system', 'content': f"Your memory is full, you need to summarize it. Your answer will replace all the previus chat history with it. "}]
+            messages=history_for_openai+[{'role': 'system', 'content': f"Your memory is full, you need to summarize it. Your need to write down summarized information as it would stay in memory of character that you pretending to be. Stay in the Image. Your next answer will replace all previus chat history with it. So it must include all important information."}]
         )
         summary = chat_response['choices'][0]['message']['content']
     return summary
