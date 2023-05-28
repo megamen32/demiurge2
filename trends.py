@@ -3,6 +3,8 @@ from GoogleNews import GoogleNews
 
 def get_news(text:str=' '):
     googlenews = GoogleNews(lang='ru', period='d')
+    if not text or not any(text):
+        text=' '
     googlenews.search(text)
     result = googlenews.result()
     trends=[]

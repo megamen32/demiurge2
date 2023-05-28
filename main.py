@@ -16,6 +16,7 @@ from aiogram.types import BotCommand
 import speech_recognition as sr
 
 import config
+import gpt
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT,bot
 from datebase import Prompt
 from draw import draw_and_answer, process_draw_commands
@@ -26,7 +27,7 @@ from gpt import process_queue, gpt_acreate
 openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
-MAX_HISTORY = 1900
+MAX_HISTORY = 3000
 
 
 @dp.message_handler(commands=['promt'])
@@ -316,6 +317,8 @@ async def handle_message(message: types.Message):
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
         response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id)
         response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id)
+        response_text = process_search_commands(response_text, message,r'\/search (.+)\/?')
+        response_text = process_search_commands(response_text, message,r'\/web (.+)\/?',coroutine=handle_web)
 
 
         # Отправьте ответ пользователю
@@ -397,9 +400,14 @@ async def check_inactive_users():
             last_message_time = datetime.fromtimestamp(user_data['last_message_time'])
             if datetime.now() - last_message_time > timedelta(hours=24):  # если прошло 24 часа
                 # генерируем сообщение
-                chat_response = await openai.ChatCompletion.acreate(
+                ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
+                history_for_openai = [{'role': 'system',
+                                       'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                      ] + [{"role": item["role"], "content": item["content"]} for item in
+                                           user_data['history']]
+                chat_response = await gpt_acreate(
                     model="gpt-3.5-turbo",
-                    messages=[
+                    messages=history_for_openai+[
                         {'role': 'system', 'content': 'Пользователь не взаимодействовал в течение 24 часов.'},
                         {'role': 'system', 'content': 'Вы должны напомнить о себе.'}
                     ]

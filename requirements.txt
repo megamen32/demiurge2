@@ -8,3 +8,4 @@ openai-whisper
 aiolimiter
 pytrends
 GoogleNews
+newspaper3k

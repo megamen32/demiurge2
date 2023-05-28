@@ -1,5 +1,6 @@
 import asyncio
 import io
+import re
 import traceback
 from aiogram import types
 
@@ -10,6 +11,8 @@ import trends
 from config import dp
 from datebase import ImageMidjourney
 from draw import improve_prompt
+
+MAX_TOKENS = 2000
 
 
 async def generate_image_midjourney(prompt):
@@ -120,10 +123,17 @@ async def handle_draw_callback(query: types.CallbackQuery):
             await msg.edit_text("An error occurred while upscalling the image.")
 
 @dp.message_handler(commands=['web'])
-async def handle_imagine(message: types.Message):
+@dp.message_handler(regexp=r'https?://[^\s]+')
+async def handle_web(message: types.Message):
     msg=await message.reply('...')
     try:
-        promt=message.get_args()
+        promt=None
+        try:
+            promt=message.get_args()
+        except:
+            pass
+        if promt is None or not any(promt):
+            promt=message.text
         from newspaper import Article
 
         url = promt
@@ -132,19 +142,42 @@ async def handle_imagine(message: types.Message):
         article.download()
         article.parse()
 
-        await msg.edit_text(article.text)
+        await msg.edit_text(article.text[:4096])
         message.text=f'Скинул сайт {url}, дата публикации {article.publish_date}, Авторы :{", ".join(article.authors)} вот содержимое: {article.text}'
+        from main import count_tokens
+        if count_tokens([{'content':message.text}])> MAX_TOKENS:
+            normal_text=[]
+            ctns=message.text.split('\n')
+            if len(ctns)<=2:
+                ctns=message.text.split()
+            while count_tokens(normal_text)< MAX_TOKENS and any(ctns):
+                elem = ctns.pop()
+                content_elem_ = {'content': elem}
+                if count_tokens(normal_text+[content_elem_])< MAX_TOKENS:
+                    normal_text.append(content_elem_)
+                else:
+                    break
+            message.text='\n'.join(msg['content'] for msg in normal_text)
+
         from main import handle_message
         return await handle_message(message)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось скачать сайт')
 @dp.message_handler(commands=['search'])
-async def handle_imagine(message: types.Message):
+async def handle_search(message: types.Message):
     msg=await message.reply('loading news and trends...')
+    promt = None
+    try:
+        promt = message.get_args()
+    except:
+        pass
+    if promt is None or not any(promt):
+        promt = message.text
+
     loop=asyncio.get_running_loop()
     tags=loop.run_in_executor(None,trends.get_tags)
-    news=loop.run_in_executor(None,trends.get_news)
+    news=loop.run_in_executor(None,trends.get_news,promt)
     tags,news=await asyncio.gather(tags,news)
     text='\n'.join([f'{n}' for n in news])+'\n\n'
     text+='\n'.join([f'{n}' for n in tags])
@@ -153,3 +186,16 @@ async def handle_imagine(message: types.Message):
     message.text=f'Вот все главные новости за сегодня и популярные темы, дай анализ:\n {text}'
     from main import handle_message
     return await handle_message(message)
+
+def process_search_commands(response_text,message, pattern='/search (.+)\/?',coroutine=handle_search):
+    while True:
+        prompts = re.findall(pattern, response_text)
+        if not prompts:
+            break
+        for prompt in prompts:
+
+            message.text=prompt
+            asyncio.create_task(coroutine(message))
+        response_text = re.sub(pattern, '', response_text)
+    return response_text
+
