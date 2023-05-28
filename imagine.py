@@ -6,6 +6,7 @@ from aiogram import types
 import aiohttp
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+import trends
 from config import dp
 from datebase import ImageMidjourney
 from draw import improve_prompt
@@ -118,3 +119,15 @@ async def handle_draw_callback(query: types.CallbackQuery):
         else:
             await msg.edit_text("An error occurred while upscalling the image.")
 
+
+@dp.message_handler(commands=['trends'])
+async def handle_imagine(message: types.Message):
+    tags=trends.get_tags()
+    news=trends.get_news()
+    text='\n'.join([f'{n}' for n in news])
+    text+=', #'.join([f'{n}' for n in tags])
+
+    await message.reply(text)
+    message.text=f'Вот все новости за сегодня и популярные темы, дай анализ {text}'
+    from main import handle_message
+    return await handle_message(message)
