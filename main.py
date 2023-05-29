@@ -319,8 +319,9 @@ async def handle_message(message: types.Message):
 
         # Отправьте ответ пользователю
         if response_text:
-            await msg.edit_text(response_text[:4096])
+
             try:
+                await msg.edit_text(response_text[:4096])
                 if False:
                     voice_filename=await asyncio.get_running_loop().run_in_executor(None, text_to_speech,(response_text))
                 else:
