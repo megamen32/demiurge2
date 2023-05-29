@@ -21,6 +21,7 @@ from draw import process_draw_commands
 
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
+from image_caption import image_caption_generator
 
 openai.api_key=CHATGPT_API_KEY
 
@@ -141,9 +142,31 @@ async def handle_voice(message: types.Message):
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
+@dp.message_handler(content_types=types.ContentType.PHOTO)
+async def handle_photo(message: types.Message):
+    msg = await message.reply('...')
+    try:
+        user_id = message.chat.id
+        user_data = await dp.storage.get_data(chat=user_id)
 
+        # Получите файл голосового сообщения
+        file_id = message.photo[-1].file_id
+        file = await bot.get_file(file_id)
+        file_path = file.file_path
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+        ext = file_path.rsplit('.', 1)[-1]
+        # Скачайте аудиофайл
+        await bot.download_file(file_path, destination=f"{file_id}.{ext}")
+
+        text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
+        message.text = text
+        asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
+        return await handle_message(message)
+    except:
+        traceback.print_exc()
+        await msg.edit_text('Не удалось получить ответ от Демиурга')
 @dp.message_handler(content_types=types.ContentType.VIDEO)
-async def handle_voice(message: types.Message):
+async def handle_video(message: types.Message):
     msg = await message.reply('...')
     try:
         user_id = message.chat.id
@@ -171,11 +194,17 @@ speech_model=None
 def recognize(file_id,ext='.ogg'):
     # Преобразование аудиофайла в формат WAV для распознавания речи
     # Используйте SpeechRecognition для преобразования аудио в текст
-    global speech_model
-    if speech_model is None:
-        speech_model = whisper.load_model("medium")
-    result = speech_model.transcribe(f"{file_id}{ext}")
-    text=(result["text"])
+    if False:
+        global speech_model
+        if speech_model is None:
+            speech_model = whisper.load_model("small")
+        result = speech_model.transcribe(f"{file_id}{ext}")
+        text=(result["text"])
+    else:
+        os.system(f'ffmpeg -i {file_id}{ext} {file_id}.wav')
+        audio_file = open(f'{file_id}.wav', "rb")
+        text=openai.Audio.transcribe("whisper-1", audio_file)['text']
+        os.remove(f'{file_id}.wav')
 
     os.remove(f'{file_id}{ext}')
     return text

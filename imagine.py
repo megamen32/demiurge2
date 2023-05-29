@@ -10,6 +10,7 @@ import aiohttp
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bs4 import BeautifulSoup
 
+import config
 import trends
 from config import dp
 from datebase import ImageMidjourney
@@ -204,3 +205,49 @@ def process_search_commands(response_text,message, pattern='/search (.+)\/?',cor
         response_text = re.sub(pattern, '', response_text)
     return response_text
 
+
+def generate_image_stability(prompt):
+    from unstabilityai import fetch_image
+    files=fetch_image(prompt)
+    return files
+
+
+@dp.message_handler(commands=['stable','s'])
+async def handle_imagine(message: types.Message):
+    old=prompt = message.get_args()
+    if not prompt:
+        await message.reply("Please provide a description for the image.")
+        return
+
+    msg = await message.reply("Creating image...")
+    try:
+        chat_id=message.chat.id
+
+
+        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data['history'].extend([
+            {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
+        await dp.storage.set_data(chat=chat_id,data=user_data)
+        prompt = await improve_prompt(prompt,chat_id)
+        asyncio.create_task( msg.edit_text(prompt))
+        img_data=None
+        try:
+            img_data = await asyncio.get_running_loop().run_in_executor(None, generate_image_stability,(prompt))
+            # Extract file name from the URL
+
+
+
+        except:
+            traceback.print_exc()
+
+        if img_data is None:
+            await msg.edit_text("An error occurred while generating the image.")
+            return
+
+        kb = InlineKeyboardMarkup(resize_keyboard=True)
+        for photo in img_data:
+            asyncio.create_task( message.answer_photo(photo=types.InputFile(photo),caption=prompt,reply_markup=kb))
+        await msg.delete()
+    except:
+        traceback.print_exc()
+        await message.answer('An error occurred while generating the image.')

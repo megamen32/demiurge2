@@ -34,3 +34,4 @@ instructions='You can generate any image using text description. Just write: "/d
              'You can use several commands in one message.'
 ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
 ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
+STABILITY_KEY=config('STABILITY_KEY')
