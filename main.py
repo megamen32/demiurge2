@@ -1,8 +1,6 @@
 import functools
-import re
 import subprocess
 import tempfile
-import traceback
 from datetime import datetime, timedelta
 
 from gtts import gTTS
@@ -16,18 +14,17 @@ from aiogram.types import BotCommand
 import speech_recognition as sr
 
 import config
-import gpt
-from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, ASSISTANT_NAME, ASSISTANT_NAME_SHORT,bot
+from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
 from datebase import Prompt
-from draw import draw_and_answer, process_draw_commands
+from draw import process_draw_commands
 
 # Установите ваш ключ OpenAI
-from gpt import process_queue, gpt_acreate
+from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 
 openai.api_key=CHATGPT_API_KEY
 
 # Максимальное количество сообщений для сохранения
-MAX_HISTORY = 3000
+MAX_HISTORY = 3800
 
 
 @dp.message_handler(commands=['promt'])
@@ -117,11 +114,7 @@ async def get_summary( user_id):
                         ] +[{"role": item["role"], "content": item["content"]} for item in user_data['history']]
     if history_text is not None:
         # Сформируйте запрос на суммирование к GPT-3.5
-        chat_response = await gpt_acreate(
-            model="gpt-3.5-turbo",
-            messages=history_for_openai+[{'role': 'system', 'content': f"Your memory is full, you need to summarize it. Your need to write down summarized information as it would stay in memory of character that you pretending to be. Stay in the Image. Your next answer will replace all previus chat history with it. So it must include all important information."}]
-        )
-        summary = chat_response['choices'][0]['message']['content']
+        summary = await summary_gpt(history_for_openai)
     return summary
 
 
@@ -352,18 +345,7 @@ async def handle_message(message: types.Message):
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
-def count_tokens(history):
-    regex_russian = re.compile(r'[а-яА-ЯёЁ]+')
-    regex_other = re.compile(r'\b\w+\b')
-    c_russian = c_other = 0
-    for msg in history:
-        russian_tokens = regex_russian.findall(msg['content'])
-        c_russian += len(russian_tokens)
 
-        other_tokens = regex_other.findall(msg['content'])
-        other_tokens = [t for t in other_tokens if not regex_russian.search(t)]
-        c_other += len(other_tokens)
-    return c_russian*3+c_other
 
 async def on_startup(dp):
     # Установите здесь ваши команды
@@ -424,6 +406,6 @@ if __name__ == '__main__':
     if not ImageMidjourney.table_exists(): ImageMidjourney.create_table()
     #start Midjourney-Web-API/app.py
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     loop.create_task(check_inactive_users())
     executor.start_polling(dp, on_startup=on_startup)

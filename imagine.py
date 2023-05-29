@@ -2,17 +2,19 @@ import asyncio
 import io
 import re
 import traceback
+
+import requests
 from aiogram import types
 
 import aiohttp
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from bs4 import BeautifulSoup
 
 import trends
 from config import dp
 from datebase import ImageMidjourney
 from draw import improve_prompt
-
-MAX_TOKENS = 2000
+from gpt import shorten
 
 
 async def generate_image_midjourney(prompt):
@@ -134,36 +136,39 @@ async def handle_web(message: types.Message):
             pass
         if promt is None or not any(promt):
             promt=message.text
-        from newspaper import Article
 
         url = promt
-        article = Article(url)
+        text = await asyncio.get_event_loop().run_in_executor(None,open_url,(url))
+        message.text=text
+        await msg.edit_text(message.text[:4096])
 
-        article.download()
-        article.parse()
-
-        await msg.edit_text(article.text[:4096])
-        message.text=f'Скинул сайт {url}, дата публикации {article.publish_date}, Авторы :{", ".join(article.authors)} вот содержимое: {article.text}'
-        from main import count_tokens
-        if count_tokens([{'content':message.text}])> MAX_TOKENS:
-            normal_text=[]
-            ctns=message.text.split('\n')
-            if len(ctns)<=2:
-                ctns=message.text.split()
-            while count_tokens(normal_text)< MAX_TOKENS and any(ctns):
-                elem = ctns.pop()
-                content_elem_ = {'content': elem}
-                if count_tokens(normal_text+[content_elem_])< MAX_TOKENS:
-                    normal_text.append(content_elem_)
-                else:
-                    break
-            message.text='\n'.join(msg['content'] for msg in normal_text)
+        message_text = message.text
+        message.text=await shorten(message_text)
 
         from main import handle_message
         return await handle_message(message)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось скачать сайт')
+
+
+def open_url(url):
+    from newspaper import Article
+    article = Article(url)
+    article.download()
+    article.parse()
+    if article.text:
+        text = f'Скинул сайт {url}, дата публикации {article.publish_date}, Авторы :{", ".join(article.authors)} вот содержимое: {article.text}'
+    else:
+        r = requests.get(url)
+        soup = BeautifulSoup(r.content, 'html.parser')
+        # извлекаем все элементы <p>
+        paragraphs = '\n'.join([ p.text for p in soup.findAll('p')])
+        # возвращаем все абзацы в виде строки
+        text = f'Скинул сайт {url}, вот содержимое: {paragraphs}'
+    return text
+
+
 @dp.message_handler(commands=['search'])
 async def handle_search(message: types.Message):
     msg=await message.reply('loading news and trends...')
