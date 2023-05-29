@@ -14,6 +14,7 @@ from aiogram.types import BotCommand
 import speech_recognition as sr
 
 import config
+import gpt
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
 from datebase import Prompt
 from draw import process_draw_commands
@@ -23,8 +24,7 @@ from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 
 openai.api_key=CHATGPT_API_KEY
 
-# Максимальное количество сообщений для сохранения
-MAX_HISTORY = 3800
+
 
 
 @dp.message_handler(commands=['promt'])
@@ -289,6 +289,7 @@ async def handle_message(message: types.Message):
 
         # Добавьте сообщение пользователя в историю
         user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
+        await dp.storage.set_data(chat=user_id, data=user_data)
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
         # Сформируйте ответ от GPT-3.5
@@ -307,7 +308,9 @@ async def handle_message(message: types.Message):
             response_text = response_text.split(":", 1)[1].strip()
 
         ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
+        user_data=await dp.storage.get_data(chat=user_id)
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
+
         response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id)
         response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id)
         response_text = process_search_commands(response_text, message,r'\/search (.+)\/?')
@@ -331,9 +334,13 @@ async def handle_message(message: types.Message):
         else:
             await msg.delete()
 
-        # Ограничьте историю MAX_HISTORY сообщениями
-        if count_tokens(user_data['history']) > MAX_HISTORY:
-            summary = await get_summary(user_id)
+
+        if count_tokens(user_data['history']) > gpt.MAX_TOKENS:
+            history_for_openai = [{'role': 'system',
+                                   'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                  ] + [{"role": item["role"], "content": item["content"]} for item in
+                                       user_data['history'][:-2]]
+            summary = await summary_gpt(history_for_openai)
             asyncio.create_task(message.answer('Короче:\n' + summary))
             # Замените историю диалога суммарным представлением
             last_msg=user_data['history'][-2:]

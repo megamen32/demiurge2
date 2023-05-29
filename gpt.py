@@ -26,7 +26,7 @@ async def process_queue():
 # Create a rate limiter that allows 3 operations per minute
 rate_limiter = AsyncLimiter(3, 60)
 
-async def agpt(reversed=False,**params):
+async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
     async with rate_limiter:
         while True:
@@ -34,11 +34,17 @@ async def agpt(reversed=False,**params):
                 config.set_random_api_key()
                 # Ограничьте историю MAX_HISTORY сообщениями
                 if count_tokens(params['messages']) > MAX_TOKENS:
-                    summary = await summary_gpt(params['messages'])
-                    # Замените историю диалога суммарным представлением
-                    last_msg = params['messages'][-2:]
-                    params['messages'] = [{"role": "assistant", "content": summary}]
-                    params['messages'].extend(last_msg)
+                    normal_text = []
+                    ctns = list(reversed((params['messages'])))
+                    while count_tokens(normal_text) < MAX_TOKENS and any(ctns):
+                        elem = ctns.pop()
+                        if count_tokens(normal_text + [elem]) < MAX_TOKENS:
+                            normal_text.append(elem)
+                        else:
+                            break
+                    params['messages']=list(reversed(normal_text))
+
+
                 result = await openai.ChatCompletion.acreate(**params)
                 return result
             except RateLimitError:
@@ -72,7 +78,7 @@ def count_tokens(history):
     return c_russian*3+c_other
 
 
-MAX_TOKENS = 3800
+MAX_TOKENS = 3000
 
 
 async def shorten(message_text):
