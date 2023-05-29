@@ -12,13 +12,20 @@ def get_news2(text:str=' '):
     for article in result:
         trends.append(article['title'].strip('...')+' '+article['desc']+'\n'+article['link'])
     return trends
-def get_news(query=' '):
+def get_news_google(query=' '):
     from googlesearch import search
     search_results = []
-    for result in search(query,advanced=True, num_results=10):
+    generator = search(query, advanced=True, num_results=10)
+    for result in generator:
         search_results.append(result.title.strip('...')+' '+result.description+'\n'+result.url)
     return search_results
-
+def get_news(query=' '):
+    from search_web import google_search
+    search_results = []
+    generator = google_search(query)
+    for result in generator:
+        search_results.append(result.title.strip('...')+' '+result.description+'\n'+result.url)
+    return search_results
 def get_tags():
     from pytrends.request import TrendReq
     pytrends = TrendReq()

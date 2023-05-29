@@ -142,19 +142,42 @@ async def handle_voice(message: types.Message):
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
+@dp.message_handler(content_types=types.ContentType.VIDEO)
+async def handle_voice(message: types.Message):
+    msg = await message.reply('...')
+    try:
+        user_id = message.chat.id
+        user_data = await dp.storage.get_data(chat=user_id)
 
-def recognize(file_id):
+        # Получите файл голосового сообщения
+        file_id = message.video.file_id
+        file = await bot.get_file(file_id)
+        file_path = file.file_path
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+        ext=file_path.rsplit('.',1)[-1]
+        # Скачайте аудиофайл
+        await bot.download_file(file_path, destination=f"{file_id}.{ext}")
+
+        text = await asyncio.get_running_loop().run_in_executor(None, recognize,file_id,f'.{ext}')
+        message.text=text
+        asyncio.create_task( msg.edit_text(f'Вы сказали:\n{text}'))
+        return await handle_message(message)
+    except:
+        traceback.print_exc()
+        await msg.edit_text('Не удалось получить ответ от Демиурга')
+
+import whisper
+speech_model=None
+def recognize(file_id,ext='.ogg'):
     # Преобразование аудиофайла в формат WAV для распознавания речи
-    os.system(f"ffmpeg -i {file_id}.ogg {file_id}.wav")
     # Используйте SpeechRecognition для преобразования аудио в текст
-    import whisper
-
-    model = whisper.load_model("small")
-    result = model.transcribe(f"{file_id}.wav")
+    global speech_model
+    if speech_model is None:
+        speech_model = whisper.load_model("medium")
+    result = speech_model.transcribe(f"{file_id}{ext}")
     text=(result["text"])
 
-    os.remove(f'{file_id}.ogg')
-    os.remove(f'{file_id}.wav')
+    os.remove(f'{file_id}{ext}')
     return text
 def recognize_old(file_id):
     # Преобразование аудиофайла в формат WAV для распознавания речи
@@ -310,7 +333,7 @@ async def handle_message(message: types.Message):
         ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
         user_data=await dp.storage.get_data(chat=user_id)
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
-
+        await dp.storage.set_data(chat=user_id, data=user_data)
         response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id)
         response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id)
         response_text = process_search_commands(response_text, message,r'\/search (.+)\/?')

@@ -181,9 +181,9 @@ async def handle_search(message: types.Message):
         promt = message.text
 
     loop=asyncio.get_running_loop()
-    tags=loop.run_in_executor(None,trends.get_tags)
+    #tags=loop.run_in_executor(None,trends.get_tags)
     news=loop.run_in_executor(None,trends.get_news,promt)
-    tags,news=await asyncio.gather(tags,news)
+    news=await asyncio.gather(news)
     text='\n'.join([f'{n}' for n in news])+'\n\n'
     #text+='\n'.join([f'{n}' for n in tags])
 
