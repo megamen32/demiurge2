@@ -180,7 +180,7 @@ async def handle_search(message: types.Message):
     news=loop.run_in_executor(None,trends.get_news,promt)
     tags,news=await asyncio.gather(tags,news)
     text='\n'.join([f'{n}' for n in news])+'\n\n'
-    text+='\n'.join([f'{n}' for n in tags])
+    #text+='\n'.join([f'{n}' for n in tags])
 
     await msg.edit_text(text)
     message.text=f'Вот все главные новости за сегодня и популярные темы, дай анализ:\n {text}'
