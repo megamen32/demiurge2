@@ -111,9 +111,11 @@ async def get_summary( user_id):
     history_text = await get_history(user_id)
     user_data=await dp.storage.get_data(chat=user_id)
     ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
-    history_for_openai =[ {'role': 'system', 'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                        ] +[{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+
     if history_text is not None:
+        history_for_openai = [{'role': 'system',
+                               'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                              ] + [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         # Сформируйте запрос на суммирование к GPT-3.5
         summary = await summary_gpt(history_for_openai)
     return summary
