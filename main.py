@@ -161,7 +161,7 @@ async def handle_photo(message: types.Message):
         await bot.download_file(file_path, destination=f"{file_id}.{ext}")
 
         text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
-        message.text = f'User sends your photo, i recognized these labels {text}'
+        message.text = f'User sends your photo, that ai recognized as "{text}"'
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
         return await handle_message(message,role='system')
     except:
