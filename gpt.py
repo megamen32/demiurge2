@@ -75,10 +75,10 @@ def count_tokens(history):
         other_tokens = regex_other.findall(msg['content'])
         other_tokens = [t for t in other_tokens if not regex_russian.search(t)]
         c_other += len(other_tokens)
-    return c_russian*3+c_other
+    return c_russian*3.5+c_other
 
 
-MAX_TOKENS = 3000
+MAX_TOKENS = 2700
 
 
 async def shorten(message_text):

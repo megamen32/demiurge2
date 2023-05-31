@@ -50,19 +50,19 @@ def fetch_image(promtp='котик фури'):
     textarea.send_keys(promtp)
 
     # Нажатие кнопки
-
-    select_input = driver.find_element(By.CSS_SELECTOR,
+    try:
+      select_input = driver.find_element(By.CSS_SELECTOR,
                                        'div.mantine-Input-wrapper.mantine-Select-wrapper.mantine-7c7vou input')
-    select_input.click()
+      select_input.click()
 
     # Подождать пока выпадающий список не станет видимым
-    wait = WebDriverWait(driver, 10)
-    wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.mantine-Select-item')))
+      wait = WebDriverWait(driver, 10)
+      wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.mantine-Select-item')))
 
-    try:
+
         # Найти элемент "Photo" в выпадающем списке и кликнуть по нему
-        photo_option = driver.find_element(By.XPATH, '//div[contains(text(), "Photo")]')
-        ActionChains(driver).move_to_element(photo_option).click().perform()
+      photo_option = driver.find_element(By.XPATH, '//div[contains(text(), "Photo")]')
+      ActionChains(driver).move_to_element(photo_option).click().perform()
     except:
         traceback.print_exc()
     try:
