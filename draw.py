@@ -31,7 +31,9 @@ async def gen_img(prompt, ratio, style):
         global imagine
         if imagine is None:
             imagine = AsyncImagine()
-        while True:
+        i=0
+        while i<3:
+            i+=1
             img_data_task = asyncio.create_task( imagine.sdprem(
                 prompt=prompt,
                 style=style,
@@ -171,6 +173,14 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     await dp.storage.set_data(chat=query.message.chat.id, data=user_data)
     await draw_and_answer(prompt,query.message.chat.id)
 
+
+def translate_promt(prompt):
+    from translate import Translator
+    translator = Translator(from_lang='ru',to_lang="en")
+    translation = translator.translate(prompt)
+    return translation
+
+
 async def draw_and_answer(prompt,chat_id):
     user_data = await dp.storage.get_data(chat=chat_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
@@ -180,7 +190,8 @@ async def draw_and_answer(prompt,chat_id):
         style=user_data.get('style', 'ANIME_V2')
     msg=await bot.send_message(chat_id=chat_id,text= f"Creating image... {style}\n{ratio} \n{prompt}")
     try:
-
+        if re.match('[а-яА-Я]+',prompt):
+            prompt=translate_promt(prompt)
         moderate=await openai.Moderation.acreate(prompt)
         is_sexual= moderate['results'][0]['categories']['sexual']
         if is_sexual:

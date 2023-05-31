@@ -10,3 +10,4 @@ pytrends
 GoogleNews
 newspaper3k
 googlesearch-python
+translators
