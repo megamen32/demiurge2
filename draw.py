@@ -32,7 +32,7 @@ async def gen_img(prompt, ratio, style):
         if imagine is None:
             imagine = AsyncImagine()
         i=0
-        while i<3:
+        while i<2:
             i+=1
             img_data_task = asyncio.create_task( imagine.sdprem(
                 prompt=prompt,
@@ -40,7 +40,7 @@ async def gen_img(prompt, ratio, style):
                 ratio=ratio
             ))
             try:
-                img_data=await asyncio.wait_for(img_data_task,timeout=10)
+                img_data=await asyncio.wait_for(img_data_task,timeout=30)
                 if img_data is None:
                     continue
                 break
