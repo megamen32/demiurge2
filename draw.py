@@ -53,8 +53,10 @@ async def gen_img(prompt, ratio, style):
              return img_data,img_url
         elif style == UNSTABILITY:
             from imagine import agenerate_image_stability
-            imd_data=await agenerate_image_stability(prompt)
-            return imd_data[0],None
+            img_file=await agenerate_image_stability(prompt)
+            with open(img_file[0],'rb') as f:
+                imd_data=f.read()
+            return imd_data,None
 
 
 async def upscale_image(img_data):
