@@ -246,7 +246,7 @@ async def handle_imagine(message: types.Message):
 
         kb = InlineKeyboardMarkup(resize_keyboard=True)
         for photo in img_data:
-            asyncio.create_task( message.answer_photo(photo=types.InputFile(photo),caption=prompt,reply_markup=kb))
+            asyncio.create_task( message.answer_photo(photo=io.BytesIO(photo),caption=prompt,reply_markup=kb))
         await msg.delete()
     except:
         traceback.print_exc()

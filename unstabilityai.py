@@ -1,6 +1,7 @@
 import re
 import time
 import traceback
+import random
 
 from selenium import webdriver
 from selenium.common import StaleElementReferenceException
@@ -27,7 +28,8 @@ def fetch_image(promtp='котик фури'):
     driver = webdriver.Chrome(executable_path=driver_path, chrome_options=chrome_options)
     try:
         # Загрузка куки из файла
-        with open('cookie2.json', 'r') as f:
+        cookie__json = random.choice(['cookie2.json','cookie.json'])
+        with open(cookie__json, 'r') as f:
             cookies = json.load(f)
 
         # Открытие веб-страницы
@@ -118,10 +120,7 @@ def fetch_image(promtp='котик фури'):
 
                 # Загрузка изображения
                 response=requests.get(new_image)
-                file = f'image_{i}.png'
-                with open(file, 'wb') as f:
-                    f.write(response.content)
-                files.append(file)
+                files.append(response.content)
             except:
                 traceback.print_exc()
                 continue
