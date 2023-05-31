@@ -25,109 +25,112 @@ def fetch_image(promtp='котик фури'):
     chrome_options = Options()
     chrome_options.add_argument("--window-size=1080,1080")
     driver = webdriver.Chrome(executable_path=driver_path, chrome_options=chrome_options)
-
-    # Загрузка куки из файла
-    with open('cookie2.json', 'r') as f:
-        cookies = json.load(f)
-
-    # Открытие веб-страницы
-    driver.get('https://www.unstability.ai/robots.txt')
-
-    for cookie in cookies:
-        if 'sameSite' in cookie:
-            if cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
-                cookie['sameSite'] = 'None'
-
-        # Только определенные ключи должны быть добавлены
-        cookie_dict = {key: cookie[key] for key in ['name', 'value']
-                       if key in cookie}
-        driver.add_cookie(cookie_dict)
-
-    driver.get('https://www.unstability.ai/')
-    time.sleep(3)
-
-    # Ввод текста
-    textarea = driver.find_element(By.CSS_SELECTOR,
-                                   'textarea.mantine-Input-input.mantine-Textarea-input')
-    textarea.send_keys(promtp)
-
-    # Нажатие кнопки
     try:
-      select_input = driver.find_element(By.CSS_SELECTOR,
-                                       'div.mantine-Input-wrapper.mantine-Select-wrapper.mantine-7c7vou input')
-      driver.execute_script("arguments[0].scrollIntoView(true);", select_input);
-      select_input.click()
+        # Загрузка куки из файла
+        with open('cookie2.json', 'r') as f:
+            cookies = json.load(f)
 
-    # Подождать пока выпадающий список не станет видимым
-      wait = WebDriverWait(driver, 10)
-      wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.mantine-Select-item')))
+        # Открытие веб-страницы
+        driver.get('https://www.unstability.ai/robots.txt')
 
+        for cookie in cookies:
+            if 'sameSite' in cookie:
+                if cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
+                    cookie['sameSite'] = 'None'
 
-        # Найти элемент "Photo" в выпадающем списке и кликнуть по нему
-      photo_option = driver.find_element(By.XPATH, '//div[contains(text(), "Photo")]')
-      ActionChains(driver).move_to_element(photo_option).click().perform()
-    except:
-        traceback.print_exc()
-    try:
-        one_photo=driver.find_element(By.XPATH,'//div[@class="mantine-Group-root mantine-1dyf7sd"]//button//span[contains(text(), "1")]')
-        driver.execute_script("arguments[0].scrollIntoView(true);", one_photo);
-        one_photo.click()
-    except:
-        traceback.print_exc()
-    button = driver.find_element(By.XPATH,
-                                 "//div[@class='mantine-7o6j5m']")
+            # Только определенные ключи должны быть добавлены
+            cookie_dict = {key: cookie[key] for key in ['name', 'value']
+                           if key in cookie}
+            driver.add_cookie(cookie_dict)
 
-    existing_images = set()
-    for el in driver.find_elements(By.CSS_SELECTOR, 'div.mantine-AspectRatio-root > div > div > div'):
+        driver.get('https://www.unstability.ai/')
+        time.sleep(3)
+
+        # Ввод текста
+        textarea = driver.find_element(By.CSS_SELECTOR,
+                                       'textarea.mantine-Input-input.mantine-Textarea-input')
+        textarea.send_keys(promtp)
+
+        # Нажатие кнопки
         try:
-            existing_images.add(extract_url(el.get_attribute('style')))
-        except StaleElementReferenceException:
-            continue
-    driver.execute_script("arguments[0].scrollIntoView(true);", button);
-    button.click()
+          select_input = driver.find_element(By.CSS_SELECTOR,
+                                           'div.mantine-Input-wrapper.mantine-Select-wrapper.mantine-7c7vou input')
+          driver.execute_script("arguments[0].scrollIntoView(true);", select_input);
+          select_input.click()
 
-    # Получение текущих изображений
+        # Подождать пока выпадающий список не станет видимым
+          wait = WebDriverWait(driver, 10)
+          wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.mantine-Select-item')))
 
-    # Ожидание появления нового изображения
-    time.sleep(20)
-    i = 0
-    while i < 10:
-        i+=1
-        images = set()
-        for el in driver.find_elements(By.CSS_SELECTOR, 'div.mantine-AspectRatio-root > div > div > div'):
-            try:
-                images.add(extract_url(el.get_attribute('style')))
-                driver.execute_script("arguments[0].scrollIntoView(true);", el);
-            except StaleElementReferenceException:
-                continue
-        new_images = images.difference(existing_images)
-        if any(new_images):
-            break
-        sleep(2)
 
-    # Извлечение URL нового изображения
-
-    # Прокрутка до элемента
-    files=[]
-    for i,new_image in enumerate(new_images):
-        try:
-            # Прокрутка до элемента
-            image_url = new_image
-
-            # Загрузка изображения
-            response=requests.get(new_image)
-            file = f'image_{i}.png'
-            with open(file, 'wb') as f:
-                f.write(response.content)
-            files.append(file)
+            # Найти элемент "Photo" в выпадающем списке и кликнуть по нему
+          photo_option = driver.find_element(By.XPATH, '//div[contains(text(), "Photo")]')
+          ActionChains(driver).move_to_element(photo_option).click().perform()
         except:
             traceback.print_exc()
-            continue
+        try:
+            one_photo=driver.find_element(By.XPATH,'//div[@class="mantine-Group-root mantine-1dyf7sd"]//button//span[contains(text(), "1")]')
+            driver.execute_script("arguments[0].scrollIntoView(true);", one_photo);
+            one_photo.click()
+        except:
+            traceback.print_exc()
+        button = driver.find_element(By.XPATH,
+                                     "//div[@class='mantine-7o6j5m']")
 
-    driver.quit()
+        existing_images = set()
+        for el in driver.find_elements(By.CSS_SELECTOR, 'div.mantine-AspectRatio-root > div > div > div'):
+            try:
+                existing_images.add(extract_url(el.get_attribute('style')))
+            except StaleElementReferenceException:
+                continue
+        driver.execute_script("arguments[0].scrollIntoView(true);", button);
+        button.click()
+
+        # Получение текущих изображений
+
+        # Ожидание появления нового изображения
+        time.sleep(20)
+        i = 0
+        while i < 10:
+            i+=1
+            images = set()
+            for el in driver.find_elements(By.CSS_SELECTOR, 'div.mantine-AspectRatio-root > div > div > div'):
+                try:
+                    images.add(extract_url(el.get_attribute('style')))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", el);
+                except StaleElementReferenceException:
+                    continue
+            new_images = images.difference(existing_images)
+            if any(new_images):
+                break
+            sleep(2)
+        if not any(new_images):
+            new_images=[images.pop()]
+
+        # Извлечение URL нового изображения
+
+        # Прокрутка до элемента
+        files=[]
+        for i,new_image in enumerate(new_images):
+            try:
+                # Прокрутка до элемента
+                image_url = new_image
+
+                # Загрузка изображения
+                response=requests.get(new_image)
+                file = f'image_{i}.png'
+                with open(file, 'wb') as f:
+                    f.write(response.content)
+                files.append(file)
+            except:
+                traceback.print_exc()
+                continue
+        return files
+    finally:
+        driver.quit()
 
     # Возврат пути до изображения
-    return files
+
 
 
 
