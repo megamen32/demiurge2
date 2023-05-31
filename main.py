@@ -161,9 +161,9 @@ async def handle_photo(message: types.Message):
         await bot.download_file(file_path, destination=f"{file_id}.{ext}")
 
         text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
-        message.text = text
+        message.text = f'User sends your photo, i recognized these labels {text}'
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
-        return await handle_message(message)
+        return await handle_message(message,role='system')
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
@@ -292,7 +292,7 @@ async def text_to_speech2(text):
 
 from aiogram import types
 
-@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.PHOTO, types.ContentType.VIDEO,types.ContentType.POLL,types.ContentType.PINNED_MESSAGE,types.ContentType.DELETE_CHAT_PHOTO,types.ContentType.NEW_CHAT_PHOTO,types.ContentType.NEW_CHAT_TITLE,types.ContentType.DICE,types.ContentType.CONTACT,types.ContentType.STICKER])
+@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.POLL,types.ContentType.PINNED_MESSAGE,types.ContentType.DELETE_CHAT_PHOTO,types.ContentType.NEW_CHAT_PHOTO,types.ContentType.NEW_CHAT_TITLE,types.ContentType.DICE,types.ContentType.CONTACT,types.ContentType.STICKER])
 async def handle_chat_update(message: types.Message):
 
     user = message.from_user
@@ -330,7 +330,7 @@ async def handle_chat_update(message: types.Message):
 
 
 @dp.message_handler(content_types=types.ContentType.TEXT)
-async def handle_message(message: types.Message):
+async def handle_message(message: types.Message,role='user'):
 
     msg=await message.reply('...')
     try:
@@ -342,7 +342,10 @@ async def handle_message(message: types.Message):
             user_data['history'] = []
 
         # Добавьте сообщение пользователя в историю
-        user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
+        if role=='user':
+            user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
+        else:
+            user_data['history'].append({"role": "system", "content": f'{message.text}','message_id': message.message_id})
         await dp.storage.set_data(chat=user_id, data=user_data)
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
@@ -376,21 +379,16 @@ async def handle_message(message: types.Message):
 
             try:
                 await msg.edit_text(response_text[:4096])
-                if False:
-                    voice_filename=await asyncio.get_running_loop().run_in_executor(None, text_to_speech,(response_text))
-                else:
-                    voice_filename=await text_to_speech2(response_text)
-                if os.path.exists(voice_filename):
-                    with open(voice_filename, 'rb') as audio:
-                        await message.reply_voice(voice= audio,caption=response_text[:1024])
-                    await msg.delete()
+                asyncio.create_task( send_tts(message, msg, response_text))
             except:traceback.print_exc()
             #await dp.storage.set_data(chat=chat_id, data=user_data)
         else:
             await msg.delete()
 
 
-        if count_tokens(user_data['history']) > gpt.MAX_TOKENS:
+        if count_tokens([{'role': 'system',
+                                   'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                  ] +user_data['history']) > gpt.MAX_TOKENS:
             history_for_openai = [{'role': 'system',
                                    'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
                                   ] + [{"role": item["role"], "content": item["content"]} for item in
@@ -407,6 +405,17 @@ async def handle_message(message: types.Message):
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
+
+
+async def send_tts(message, msg, response_text):
+    if False:
+        voice_filename = await asyncio.get_running_loop().run_in_executor(None, text_to_speech, (response_text))
+    else:
+        voice_filename = await text_to_speech2(response_text)
+    if os.path.exists(voice_filename):
+        with open(voice_filename, 'rb') as audio:
+            await message.reply_voice(voice=audio, caption=response_text[:1024])
+        await msg.delete()
 
 
 async def on_startup(dp):

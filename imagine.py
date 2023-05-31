@@ -128,7 +128,7 @@ async def handle_draw_callback(query: types.CallbackQuery):
 @dp.message_handler(commands=['web'])
 @dp.message_handler(regexp=r'https?://[^\s]+')
 async def handle_web(message: types.Message):
-    msg=await message.reply('...')
+
     try:
         promt=None
         try:
@@ -137,7 +137,7 @@ async def handle_web(message: types.Message):
             pass
         if promt is None or not any(promt):
             promt=message.text
-
+        msg = await message.reply(f'opening link... {promt}')
         url = promt
         text = await asyncio.get_event_loop().run_in_executor(None,open_url,(url))
         message.text=text
@@ -147,7 +147,7 @@ async def handle_web(message: types.Message):
         message.text=await shorten(message_text)
 
         from main import handle_message
-        return await handle_message(message)
+        return await handle_message(message,role='system')
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось скачать сайт')
@@ -172,7 +172,7 @@ def open_url(url):
 
 @dp.message_handler(commands=['search'])
 async def handle_search(message: types.Message):
-    msg=await message.reply('loading news and trends...')
+
     promt = None
     try:
         promt = message.get_args()
@@ -180,18 +180,17 @@ async def handle_search(message: types.Message):
         pass
     if promt is None or not any(promt):
         promt = message.text
-
+    msg = await message.reply(f'searching for... {promt}')
     loop=asyncio.get_running_loop()
     #tags=loop.run_in_executor(None,trends.get_tags)
-    news=loop.run_in_executor(None,trends.get_news,promt)
-    news=await asyncio.gather(news)
-    text='\n'.join([f'{n}' for n in news])+'\n\n'
+    news=await loop.run_in_executor(None,trends.get_news,promt)
+    text='\n'.join(news)
     #text+='\n'.join([f'{n}' for n in tags])
 
     await msg.edit_text(text)
-    message.text=f'Вот все главные новости за сегодня и популярные темы, дай анализ:\n {text}'
+    message.text=f'Search results for "{promt}":\n {text}'
     from main import handle_message
-    return await handle_message(message)
+    return await handle_message(message,role='system')
 
 def process_search_commands(response_text,message, pattern='/search (.+)\/?',coroutine=handle_search):
     while True:

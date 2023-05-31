@@ -35,3 +35,5 @@ instructions='You can generate any image using text description. Just write: "/d
 ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
 ASSISTANT_NAME_SHORT = get_first_word(ASSISTANT_NAME)
 STABILITY_KEY=config('STABILITY_KEY')
+CX=config('CX')
+GOOGLE_SEARCH_API=config('GOOGLE_SEARCH_API')

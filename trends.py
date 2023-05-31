@@ -1,5 +1,9 @@
 import pandas as pd
+import requests
 from GoogleNews import GoogleNews
+
+import config
+
 
 def get_news2(text:str=' '):
     googlenews = GoogleNews(lang='ru')
@@ -19,13 +23,26 @@ def get_news_google(query=' '):
     for result in generator:
         search_results.append(result.title.strip('...')+' '+result.description+'\n'+result.url)
     return search_results
-def get_news(query=' '):
+def get_news_old(query=' '):
     from search_web import google_search
     search_results = []
     generator = google_search(query)
     for result in generator:
         search_results.append(result.title.strip('...')+' '+result.description+'\n'+result.url)
     return search_results
+def get_news(search_term=' '):
+    cx=config.CX
+    api_key=config.GOOGLE_SEARCH_API
+    base_url = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        'q': search_term,
+        'key': api_key,
+        'cx': cx
+    }
+    response = requests.get(base_url, params=params)
+    items= response.json()['items']
+    text=[f"Title: {result['title']}\nLink: {result['link']}\nSnippet: {result['snippet']}\n" for result in items]
+    return text
 def get_tags():
     from pytrends.request import TrendReq
     pytrends = TrendReq()

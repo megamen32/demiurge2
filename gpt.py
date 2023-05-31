@@ -102,7 +102,7 @@ async def summary_gpt(history_for_openai):
     chat_response = await gpt_acreate(
         model="gpt-3.5-turbo",
         messages=history_for_openai + [{'role': 'system',
-                                        'content': f"Your memory is full, you need to summarize it. Your need to write down summarized information as it would stay in memory of character that you pretending to be. Stay in the Image. Your next answer will replace all previus chat history with it. So it must include all important information."}]
+                                        'content': f"Your memory is full, you need to summarize it. Your need to write down summarized information as it would stay in memory of character that you pretending to be. Stay in the Image. Your next answer will replace all previus chat history with it. So it must include all important information. Do not write any extra text: don't continue dialog or answer questions. User will not see your answer. You need only to summirize"}]
     )
     summary = chat_response['choices'][0]['message']['content']
     return summary
