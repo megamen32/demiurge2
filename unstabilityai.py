@@ -23,6 +23,21 @@ from datebase import ImageUnstability
 def extract_url(style_string):
     match = re.search(r'url\("(.+?)"\)', style_string)
     return match.group(1) if match else None
+
+
+def get_cookie_string(cookie_file):
+    with open(cookie_file, 'r') as f:
+        cookies = json.load(f)
+
+    required_cookies = {}
+    for cookie in cookies:
+        if cookie['name'] in ['__Host-next-auth.csrf-token', '__Secure-next-auth.callback-url',
+                              '__Secure-next-auth.session-token']:
+            required_cookies[cookie['name']] = cookie['value']
+
+    cookie_str = '; '.join([f'{k}={v}' for k, v in required_cookies.items()])
+    return cookie_str
+
 def fetch_image(promtp='котик фури',style='photo'):
     # Настройка пути до драйвера
     driver_path = binary_path
@@ -32,12 +47,13 @@ def fetch_image(promtp='котик фури',style='photo'):
 
     # Загрузка куки из файла
     cookie__json = random.choice(['cookie2.json','cookie.json'])
-    with open(cookie__json, 'r') as f:
-        cookies = json.load(f)
 
     # Открытие веб-страницы
 
-
+    headers = {
+        'cookie': get_cookie_string(cookie__json),
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
+    }
 
 
     try:
@@ -78,10 +94,7 @@ def fetch_image(promtp='котик фури',style='photo'):
 
         response = requests.post(
             'https://www.unstability.ai/api/submitPrompt',
-            headers={
-                'cookie': '__Host-next-auth.csrf-token=a4f9c18bceec877af13f20c7de614b6db156f06e0550634d325e0b2098f9f0bb%7C33364ae3ff4c006cf766dc96cea162a1bd91194dff0e0488ef0a580b7c05efbf; __Secure-next-auth.callback-url=https%3A%2F%2Fwww.unstability.ai%2F; __Secure-next-auth.session-token=35b9984e-03a6-4c2d-94e5-704cf5277f53',
-                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'},
-            json=base_params
+            headers=headers, json=base_params
         )
         response.raise_for_status()
         manual=False
@@ -93,11 +106,9 @@ def fetch_image(promtp='котик фури',style='photo'):
         try:
             driver.get('https://www.unstability.ai/robots.txt')
 
+            with open(cookie__json, 'r') as f:
+                cookies = json.load(f)
             for cookie in cookies:
-                if 'sameSite' in cookie:
-                    if cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
-                        cookie['sameSite'] = 'None'
-
                 # Только определенные ключи должны быть добавлены
                 cookie_dict = {key: cookie[key] for key in ['name', 'value']
                                if key in cookie}
@@ -171,10 +182,7 @@ def fetch_image(promtp='котик фури',style='photo'):
 
     while not new_images and step<3:
         step+=1
-        headers = {
-            'cookie': '__Host-next-auth.csrf-token=a4f9c18bceec877af13f20c7de614b6db156f06e0550634d325e0b2098f9f0bb%7C33364ae3ff4c006cf766dc96cea162a1bd91194dff0e0488ef0a580b7c05efbf; __Secure-next-auth.callback-url=https%3A%2F%2Fwww.unstability.ai%2F; __Secure-next-auth.session-token=35b9984e-03a6-4c2d-94e5-704cf5277f53',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
-        }
+
         data = {'items': 250}
         response = requests.post('https://www.unstability.ai/api/image_history', headers=headers, json=data)
         images = response.json()['results']
