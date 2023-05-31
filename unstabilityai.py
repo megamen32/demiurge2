@@ -5,6 +5,7 @@ import traceback
 from selenium import webdriver
 from selenium.common import StaleElementReferenceException
 from selenium.webdriver import ActionChains
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -21,8 +22,9 @@ def extract_url(style_string):
 def fetch_image(promtp='котик фури'):
     # Настройка пути до драйвера
     driver_path = binary_path
-
-    driver = webdriver.Chrome(driver_path)
+    chrome_options = Options()
+    chrome_options.add_argument("--window-size=1080,1080")
+    driver = webdriver.Chrome(executable_path=driver_path, chrome_options=chrome_options)
 
     # Загрузка куки из файла
     with open('cookie2.json', 'r') as f:
@@ -53,6 +55,7 @@ def fetch_image(promtp='котик фури'):
     try:
       select_input = driver.find_element(By.CSS_SELECTOR,
                                        'div.mantine-Input-wrapper.mantine-Select-wrapper.mantine-7c7vou input')
+      driver.execute_script("arguments[0].scrollIntoView(true);", select_input);
       select_input.click()
 
     # Подождать пока выпадающий список не станет видимым
@@ -67,6 +70,7 @@ def fetch_image(promtp='котик фури'):
         traceback.print_exc()
     try:
         one_photo=driver.find_element(By.XPATH,'//div[@class="mantine-Group-root mantine-1dyf7sd"]//button//span[contains(text(), "1")]')
+        driver.execute_script("arguments[0].scrollIntoView(true);", one_photo);
         one_photo.click()
     except:
         traceback.print_exc()
@@ -79,7 +83,7 @@ def fetch_image(promtp='котик фури'):
             existing_images.add(extract_url(el.get_attribute('style')))
         except StaleElementReferenceException:
             continue
-
+    driver.execute_script("arguments[0].scrollIntoView(true);", button);
     button.click()
 
     # Получение текущих изображений
@@ -93,6 +97,7 @@ def fetch_image(promtp='котик фури'):
         for el in driver.find_elements(By.CSS_SELECTOR, 'div.mantine-AspectRatio-root > div > div > div'):
             try:
                 images.add(extract_url(el.get_attribute('style')))
+                driver.execute_script("arguments[0].scrollIntoView(true);", el);
             except StaleElementReferenceException:
                 continue
         new_images = images.difference(existing_images)
