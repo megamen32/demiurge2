@@ -163,7 +163,11 @@ async def handle_photo(message: types.Message):
         text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
         message.text = f'User sends your photo, that ai recognized as "{text}"'
         if message.caption:
-            message.text+=f'. User also send caption of this photo: {message.caption}'
+            user=message.from_user
+            user_data['history'].append(
+                {'role': 'system', 'content': f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"'})
+            await dp.storage.set_data(chat=user_id)
+            message.text=f'{message.caption}'
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
         return await handle_message(message,role='system')
     except:

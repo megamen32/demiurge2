@@ -37,7 +37,8 @@ def get_news(search_term=' '):
     params = {
         'q': search_term,
         'key': api_key,
-        'cx': cx
+        'cx': cx,
+        'num':5,
     }
     response = requests.get(base_url, params=params)
     items= response.json()['items']
