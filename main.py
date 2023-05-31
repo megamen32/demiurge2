@@ -348,8 +348,13 @@ async def handle_message(message: types.Message,role='user'):
             user_data['history'] = []
 
         # Добавьте сообщение пользователя в историю
+        if message.reply_to_message:
+            user = message.reply_to_message.from_user
+            from_=user.full_name or user.username if not user.id==bot.id else user_data.get('ASSISTANT_NAME_SHORT',config.ASSISTANT_NAME_SHORT)
+            message.text = f'{message.text} (this message is in response to "{from_}" who said: {message.reply_to_message.text or message.reply_to_message.caption})'
         if role=='user':
-            user_data['history'].append({"role": "user", "content": f'{message.from_user.full_name or message.from_user.username}:{message.text}','message_id': message.message_id})
+            text_ = f'{message.from_user.full_name or message.from_user.username}:{message.text}'
+            user_data['history'].append({"role": "user", "content": text_, 'message_id': message.message_id})
         else:
             user_data['history'].append({"role": "system", "content": f'{message.text}','message_id': message.message_id})
         await dp.storage.set_data(chat=user_id, data=user_data)
