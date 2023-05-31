@@ -379,7 +379,8 @@ async def handle_message(message: types.Message,role='user'):
 
             try:
                 await msg.edit_text(response_text[:4096])
-                asyncio.create_task( send_tts(message, msg, response_text))
+                if config.TTS:
+                    asyncio.create_task( send_tts(message, msg, response_text))
             except:traceback.print_exc()
             #await dp.storage.set_data(chat=chat_id, data=user_data)
         else:
