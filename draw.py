@@ -269,8 +269,12 @@ async def handle_draw_settings(message: types.Message,state:FSMContext):
     keyboard = create_settings_keyboard()
     await DrawingSettings.settings.set()
     user_data = await dp.storage.get_data(chat=message.chat.id)
-    style = Style[user_data.get('style', 'ANIME_V2')]
-    ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
+    style = user_data.get('style', 'ANIME_V2')
+    if style in Style.__members__:
+        style = Style[style]
+    ratio = user_data.get('ratio', 'RATIO_4X3')
+    if ratio in Ratio.__members__:
+        ratio = Ratio[ratio]
 
     await message.reply(f"Please choose style and ratio for your drawings.{style} {ratio}", reply_markup=keyboard)
 @dp.message_handler(state=DrawingSettings.settings.state)
