@@ -21,6 +21,7 @@ from datebase import Prompt, ImageMidjourney
 from gpt import gpt_acreate
 
 MIDJOURNEY = 'MIDJOURNEY'
+UNSTABILITY = 'UNSTABILITY'
 
 imagine = None
 
@@ -45,10 +46,15 @@ async def gen_img(prompt, ratio, style):
                 continue
         return img_data,None
     else:
-         from imagine import generate_image_midjourney
-         img_data,img_url=await generate_image_midjourney(prompt)
+        if style ==MIDJOURNEY:
+             from imagine import generate_image_midjourney
+             img_data,img_url=await generate_image_midjourney(prompt)
 
-         return img_data,img_url
+             return img_data,img_url
+        elif style == UNSTABILITY:
+            from imagine import agenerate_image_stability
+            imd_data=await agenerate_image_stability(prompt)
+            return imd_data,None
 
 
 async def upscale_image(img_data):
@@ -172,9 +178,14 @@ async def draw_and_answer(prompt,chat_id):
         style=user_data.get('style', 'ANIME_V2')
     msg=await bot.send_message(chat_id=chat_id,text= f"Creating image... {style}\n{ratio} \n{prompt}")
     try:
-        prompt=await improve_prompt(prompt,chat_id)
-        asyncio.create_task(msg.edit_text(prompt))
 
+        moderate=await openai.Moderation.acreate(prompt)
+        is_sexual= moderate['results'][0]['categories']['sexual']
+        if is_sexual:
+            style=UNSTABILITY
+        else:
+            prompt = await improve_prompt(prompt, chat_id)
+            asyncio.create_task(msg.edit_text(prompt))
         img_file,url = await gen_img(prompt, ratio, style)
         if img_file is None:
             await msg.edit_text("An error occurred while generating the image.")

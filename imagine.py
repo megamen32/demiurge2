@@ -210,7 +210,8 @@ def generate_image_stability(prompt):
     files=fetch_image(prompt)
     return files
 
-
+async def agenerate_image_stability(prompt):
+    return await asyncio.get_running_loop().run_in_executor(None,generate_image_stability,prompt)
 @dp.message_handler(commands=['stable','s'])
 async def handle_imagine(message: types.Message):
     old=prompt = message.get_args()
