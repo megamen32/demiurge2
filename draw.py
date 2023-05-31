@@ -149,6 +149,9 @@ def create_style_keyboard(prompt):
         types.InlineKeyboardButton(ratio.lower().replace('ratio_',''), callback_data=f'ratio_{prompt_db.id}_{ratio}')
         for ratio in ratios
     ]
+
+    kb.row(*buttons)
+    buttons=[]
     buttons.append(types.InlineKeyboardButton(MIDJOURNEY, callback_data=(f'style_{prompt_db.id}_{MIDJOURNEY}')))
     buttons.append(types.InlineKeyboardButton(UNSTABILITY, callback_data=(f'style_{prompt_db.id}_{UNSTABILITY}')))
     kb.row(*buttons)
