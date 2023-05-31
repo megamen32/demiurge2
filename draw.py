@@ -150,6 +150,7 @@ def create_style_keyboard(prompt):
         for ratio in ratios
     ]
     buttons.append(types.InlineKeyboardButton(MIDJOURNEY, callback_data=(f'style_{prompt_db.id}_{MIDJOURNEY}')))
+    buttons.append(types.InlineKeyboardButton(UNSTABILITY, callback_data=(f'style_{prompt_db.id}_{UNSTABILITY}')))
     kb.row(*buttons)
 
     return kb
@@ -160,7 +161,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     user_data = await dp.storage.get_data(chat=query.message.chat.id)
     _,id,text = query.data.split('_',2)
     prompt=Prompt.get_by_id(id).text
-    if text in Style.__members__ or text in [MIDJOURNEY]:
+    if text in Style.__members__ or text in [MIDJOURNEY,UNSTABILITY]:
         user_data['style'] = text
         await query.answer(f"Set style to {text}.")
     elif text in Ratio.__members__:
@@ -243,7 +244,7 @@ async def handle_draw(message: types.Message):
 
 
 def create_settings_keyboard():
-    styles = list(Style.__members__.keys())
+    styles = list(Style.__members__.keys())+[MIDJOURNEY,UNSTABILITY]
     ratios = list(Ratio.__members__.keys())
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
