@@ -16,7 +16,7 @@ import speech_recognition as sr
 import config
 import gpt
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
-from datebase import Prompt
+from datebase import Prompt, ImageUnstability
 from draw import process_draw_commands
 
 # Установите ваш ключ OpenAI
@@ -487,6 +487,7 @@ async def check_inactive_users():
 if __name__ == '__main__':
     if not Prompt.table_exists(): Prompt.create_table()
     if not ImageMidjourney.table_exists(): ImageMidjourney.create_table()
+    if not ImageUnstability.table_exists(): ImageUnstability.create_table()
     #start Midjourney-Web-API/app.py
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
     loop = asyncio.new_event_loop()

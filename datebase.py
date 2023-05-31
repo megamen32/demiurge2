@@ -14,3 +14,11 @@ class ImageMidjourney(peewee.Model):
         return   self.url.split('/')[-1].split('&',1)[0]
     class Meta:
         database=peewee.SqliteDatabase('promt.db')
+
+class ImageUnstability(peewee.Model):
+    url= peewee.CharField(unique=True,primary_key=True)
+    prompt=peewee.CharField()
+    def filename(self):
+        return   self.url.split('/')[-1].split('&',1)[0]
+    class Meta:
+        database=peewee.SqliteDatabase('promt.db')

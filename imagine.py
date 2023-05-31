@@ -205,13 +205,13 @@ def process_search_commands(response_text,message, pattern='/search (.+)\/?',cor
     return response_text
 
 
-def generate_image_stability(prompt):
+def generate_image_stability(prompt,style='photo'):
     from unstabilityai import fetch_image
-    files=fetch_image(prompt)
+    files=fetch_image(prompt,style)
     return files
 
-async def agenerate_image_stability(prompt):
-    return await asyncio.get_running_loop().run_in_executor(None,generate_image_stability,prompt)
+async def agenerate_image_stability(prompt,style='photo'):
+    return await asyncio.get_running_loop().run_in_executor(None,generate_image_stability,prompt,style)
 @dp.message_handler(commands=['stable','s'])
 async def handle_imagine(message: types.Message):
     old=prompt = message.get_args()
