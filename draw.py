@@ -197,7 +197,7 @@ async def draw_and_answer(prompt,chat_id):
         if isinstance(style,Style):
             photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}')
             img_file = await upscale_image(img_file)
-        else:
+        elif style==MIDJOURNEY:
             img_db = ImageMidjourney.create(prompt=prompt, url=url)
 
             btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in range(4)]
