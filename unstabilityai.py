@@ -3,6 +3,7 @@ import time
 import traceback
 import random
 
+from peewee import IntegrityError
 from selenium import webdriver
 from selenium.common import StaleElementReferenceException
 from selenium.webdriver import ActionChains
@@ -40,14 +41,19 @@ def fetch_image(promtp='котик фури',style='photo'):
 
 
     try:
+
         param_sets = {
             "photo": {'genre': 'realistic', 'style': 'realistic-photo'},
             "art": {'genre': 'digital-art', 'style': 'digital-art'}
         }
 
         # Выбор набора параметров
-        param_choice = "photo" if style=='photo' else 'art' # или "art"
 
+        if '-art' not in promtp:
+            param_choice = 'photo'
+        else:
+            param_choice = 'art'
+            promtp = promtp.replace('-art', '')
         # Общие параметры для запроса
         base_params = {
             "admin": False,
@@ -70,7 +76,14 @@ def fetch_image(promtp='котик фури',style='photo'):
         # Обновление общих параметров выбранным набором параметров
         base_params.update(param_sets[param_choice])
 
-        respoce.raise_for_status()
+        response = requests.post(
+            'https://www.unstability.ai/api/submitPrompt',
+            headers={
+                'cookie': '__Host-next-auth.csrf-token=a4f9c18bceec877af13f20c7de614b6db156f06e0550634d325e0b2098f9f0bb%7C33364ae3ff4c006cf766dc96cea162a1bd91194dff0e0488ef0a580b7c05efbf; __Secure-next-auth.callback-url=https%3A%2F%2Fwww.unstability.ai%2F; __Secure-next-auth.session-token=35b9984e-03a6-4c2d-94e5-704cf5277f53',
+                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'},
+            json=base_params
+        )
+        response.raise_for_status()
         manual=False
     except:
         traceback.print_exc()
@@ -154,8 +167,10 @@ def fetch_image(promtp='котик фури',style='photo'):
         finally:
             driver.quit()
     else:time.sleep(20)
+    step=0
 
-    if not new_images:
+    while not new_images and step<3:
+        step+=1
         headers = {
             'cookie': '__Host-next-auth.csrf-token=a4f9c18bceec877af13f20c7de614b6db156f06e0550634d325e0b2098f9f0bb%7C33364ae3ff4c006cf766dc96cea162a1bd91194dff0e0488ef0a580b7c05efbf; __Secure-next-auth.callback-url=https%3A%2F%2Fwww.unstability.ai%2F; __Secure-next-auth.session-token=35b9984e-03a6-4c2d-94e5-704cf5277f53',
             'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
@@ -168,15 +183,18 @@ def fetch_image(promtp='котик фури',style='photo'):
         new_urls = {image['images'][0]['original'] for image in images}
 
         # Получаем URL всех старых изображений
-        old_urls = set(ImageUnstability.select(ImageUnstability.url))
+        old_urls = {elem.url for elem in  ImageUnstability.select(ImageUnstability.url)}
 
         # Находим разницу между новыми и старыми URL, чтобы получить только новые изображения
         new_images = new_urls.difference(old_urls)
+        if any(new_images):break
+        time.sleep(10)
 
     # Добавляем новые изображения в базу данных
     for image_url in new_images:
-        ImageUnstability.create(url=image_url, prompt=promtp)
-
+        try:
+            ImageUnstability.create(url=image_url, prompt=promtp)
+        except IntegrityError:pass
     # Прокрутка до элемента
     files=[]
     for i,new_image in enumerate(new_images):
