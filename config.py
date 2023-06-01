@@ -8,7 +8,7 @@ TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN')
 CHATGPT_API_KEY = config('CHATGPT_API_KEY')
 CHATGPT_API_KEY2 = config('CHATGPT_API_KEY2')
 def set_random_api_key():
-    openai.api_key = random.choice([CHATGPT_API_KEY])
+    openai.api_key = random.choice([CHATGPT_API_KEY2])
 set_random_api_key()
 
 # Создайте экземпляры бота и диспетчера

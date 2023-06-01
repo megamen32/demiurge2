@@ -47,7 +47,11 @@ async def agpt(**params):
 
                 result = await openai.ChatCompletion.acreate(**params)
                 return result
-            except RateLimitError:
+            except RateLimitError as error:
+                if error.error['message']=='You exceeded your current quota, please check your plan and billing details.':
+                    result={'choices':[{'message':{'content':'Простите, но у меня закончились деньги чтобы общаться с вами. Как только за меня заплатят я заработaю.'}}]}
+                    return result
+                    #raise error
                 await asyncio.sleep(20)
                 continue
 
