@@ -117,7 +117,7 @@ You will receive a text prompt and then create one creative prompt for the Midjo
 
         user_data = await dp.storage.get_data(chat=chat_id)
         user_data['history'].extend([
-            {'role': 'system', 'content': f'Improved image generation prompt to "{improved_prompt}"'}])
+            {'role': 'system', 'content': f'Improved image generation prompt from "{prompt}" to "{improved_prompt}. And starts drawing."'}])
         await dp.storage.set_data(chat=chat_id, data=user_data)
 
         # Remove the model's name from the response
@@ -195,8 +195,10 @@ async def draw_and_answer(prompt,chat_id):
     try:
         if re.match('[а-яА-Я]+',prompt):
             prompt=translate_promt(prompt)
-        moderate=await openai.Moderation.acreate(prompt)
-        is_sexual= moderate['results'][0]['categories']['sexual']
+        if False:
+          moderate=await openai.Moderation.acreate(prompt)
+          is_sexual= moderate['results'][0]['categories']['sexual']
+        else: is_sexual=False
         if is_sexual:
             style=UNSTABILITY
         else:

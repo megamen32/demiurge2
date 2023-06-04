@@ -5,6 +5,7 @@ import re
 import openai
 from aiolimiter import AsyncLimiter
 from openai.error import RateLimitError
+from transformers import GPT2Tokenizer
 
 import config
 request_queue = asyncio.Queue()
@@ -25,36 +26,50 @@ async def process_queue():
 
 # Create a rate limiter that allows 3 operations per minute
 rate_limiter = AsyncLimiter(3, 60)
+llm=None
+cur_token_index=0
+my_session_tokens = ['eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ik1UaEVOVUpHTkVNMVFURTRNMEZCTWpkQ05UZzVNRFUxUlRVd1FVSkRNRU13UmtGRVFrRXpSZyJ9.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL3Byb2ZpbGUiOnsiZW1haWwiOiJoZGhmYTEyNEByYW1ibGVyLnJ1IiwiZW1haWxfdmVyaWZpZWQiOnRydWV9LCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsidXNlcl9pZCI6InVzZXIta3ZrNzRJWGxzWkZxRVZzR3FhMnFwR0hYIn0sImlzcyI6Imh0dHBzOi8vYXV0aDAub3BlbmFpLmNvbS8iLCJzdWIiOiJhdXRoMHw2M2Y1MmYyOWY4M2JkODE2ZTg4NzQ2OGIiLCJhdWQiOlsiaHR0cHM6Ly9hcGkub3BlbmFpLmNvbS92MSIsImh0dHBzOi8vb3BlbmFpLm9wZW5haS5hdXRoMGFwcC5jb20vdXNlcmluZm8iXSwiaWF0IjoxNjg1MTAyMjc1LCJleHAiOjE2ODYzMTE4NzUsImF6cCI6IlRkSkljYmUxNldvVEh0Tjk1bnl5d2g1RTR5T282SXRHIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBtb2RlbC5yZWFkIG1vZGVsLnJlcXVlc3Qgb3JnYW5pemF0aW9uLnJlYWQgb3JnYW5pemF0aW9uLndyaXRlIn0.J586tB92Sd9W6A9DQGD6BcwoKAaQQlEzR9c8IsUnXwYbezh5mCS2lTtFtiBf1vKt2t1GPg0k-WaS5zkqbrob4A0IngaNpHqZsIh04D-0pGz9pyEjkwwJvNhi7uQ9WdkTGwLsPKdx-oBto23OjcGgnv-OyWG2Vsm5nukgGe3escVikAZtzWO0visHiV_3p-97JIh5OCYF_R4Zfip5vGyWi16YuIDV1UssBCk1nF30-C-_-uyohSyGZZZ0HAE47YgiKXkqhnNrqbUKVcMhGndpaQ2eTDTcOFegZ2ASkpsvqPpceJnwhYaja5XGXga-ZsDITNMw0H4jDWOsnHYzNYPdVw']
 
 async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
-    async with rate_limiter:
+    if config.USE_API:
         while True:
-            try:
-                config.set_random_api_key()
-                # Ограничьте историю MAX_HISTORY сообщениями
-                if count_tokens(params['messages']) > MAX_TOKENS:
-                    normal_text = []
-                    ctns = list(reversed((params['messages'])))
-                    while count_tokens(normal_text) < MAX_TOKENS and any(ctns):
-                        elem = ctns.pop()
-                        if count_tokens(normal_text + [elem]) < MAX_TOKENS:
-                            normal_text.append(elem)
-                        else:
-                            break
-                    params['messages']=list(reversed(normal_text))
+            async with rate_limiter:
+                try:
+                    config.set_random_api_key()
+                    # Ограничьте историю MAX_HISTORY сообщениями
+                    if count_tokens(params['messages']) > MAX_TOKENS:
+                        normal_text = []
+                        ctns = list(reversed((params['messages'])))
+                        while count_tokens(normal_text) < MAX_TOKENS and any(ctns):
+                            elem = ctns.pop()
+                            if count_tokens(normal_text + [elem]) < MAX_TOKENS:
+                                normal_text.append(elem)
+                            else:
+                                break
+                        params['messages']=list(reversed(normal_text))
 
 
-                result = await openai.ChatCompletion.acreate(**params)
-                return result
-            except RateLimitError as error:
-                if error.error['message']=='You exceeded your current quota, please check your plan and billing details.':
-                    result={'choices':[{'message':{'content':'Простите, но у меня закончились деньги чтобы общаться с вами. Как только за меня заплатят я заработaю.'}}]}
+                    result = await openai.ChatCompletion.acreate(**params)
                     return result
-                    #raise error
-                await asyncio.sleep(20)
-                continue
-
+                except RateLimitError as error:
+                    if error.error['message']=='You exceeded your current quota, please check your plan and billing details.':
+                        result={'choices':[{'message':{'content':'Простите, но у меня закончились деньги чтобы общаться с вами. Как только за меня заплатят я заработaю.'}}]}
+                        return result
+                        #raise error
+                    await asyncio.sleep(20)
+                    continue
+    else:
+        from gpt4_openai import GPT4OpenAI
+        global llm, cur_token_index
+        if llm is None:
+            llm = [GPT4OpenAI(token=token, headless=True, model='gpt-3.5' if params['model']!='gpt=4'else 'gpt-4') for token in my_session_tokens]
+            # GPT3.5 will answer 8, while GPT4 should be smart enough to answer 10
+        prompt = params['messages'][-1]['content']
+        response = llm[cur_token_index](prompt)
+        result = {'choices': [{'message': {
+            'content': response}}]}
+        return result
     return result
 
 
@@ -67,22 +82,19 @@ async def gpt_acreate(**params):
     })
     return await future
 
-
+tokenizer=None
 def count_tokens(history):
-    regex_russian = re.compile(r'[а-яА-ЯёЁ]+')
-    regex_other = re.compile(r'\b\w+\b')
-    c_russian = c_other = 0
+    global tokenizer
+    if tokenizer is None:
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+
+    tokens=0
     for msg in history:
-        russian_tokens = regex_russian.findall(msg['content'])
-        c_russian += len(russian_tokens)
-
-        other_tokens = regex_other.findall(msg['content'])
-        other_tokens = [t for t in other_tokens if not regex_russian.search(t)]
-        c_other += len(other_tokens)
-    return c_russian*3.5+c_other
+        tokens+=len(tokenizer.encode(msg['content']))
+    return tokens
 
 
-MAX_TOKENS = 2700
+MAX_TOKENS = 4000
 
 
 async def shorten(message_text):
@@ -105,8 +117,12 @@ async def shorten(message_text):
 async def summary_gpt(history_for_openai):
     chat_response = await gpt_acreate(
         model="gpt-3.5-turbo",
-        messages=history_for_openai + [{'role': 'system',
-                                        'content': f"Your memory is full, you need to summarize it. Your need to write down summarized information as it would stay in memory of character that you pretending to be. Stay in the Image. Your next answer will replace all previus chat history with it. So it must include all important information. Do not write any extra text: don't continue dialog or answer questions. User will not see your answer. You need only to summirize"}]
+        messages=history_for_openai + [
+            {
+                'role': 'system',
+                'content': "Ты помощник, которому нужно суммировать всю предыдущую информацию. Твой следующий ответ заменит всю предыдущую историю чата, поэтому он должен содержать всю важную информацию. Следуй изображению персонажа, которым ты притворяешься. Не пиши лишний текст: не продолжай диалог или не отвечай на вопросы. Пользователь не увидит твой ответ. Тебе нужно только суммировать."
+            }
+        ]
     )
     summary = chat_response['choices'][0]['message']['content']
     return summary

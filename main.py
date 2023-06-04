@@ -362,7 +362,7 @@ async def handle_message(message: types.Message,role='user'):
         ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
         # Сформируйте ответ от GPT-3.5
         chat_response = await gpt_acreate(
-            model="gpt-3.5-turbo",
+            model="gpt-3.5-turbo" if not config.useGPT4  else 'gpt-4',
             messages=[
                          {'role': 'system', 'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
                          {'role': 'system', 'content': f'{config.instructions}'}
