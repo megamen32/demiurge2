@@ -174,7 +174,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     else:
         await query.answer("Unknown option.")
     await dp.storage.set_data(chat=query.message.chat.id, data=user_data)
-    await draw_and_answer(prompt,query.message.chat.id)
+    await draw_and_answer(prompt,query.message.chat.id,query.message.message_id)
 
 
 def translate_promt(prompt):
@@ -184,14 +184,16 @@ def translate_promt(prompt):
     return translation
 
 
-async def draw_and_answer(prompt,chat_id):
+async def draw_and_answer(prompt,chat_id, reply_to_id):
     user_data = await dp.storage.get_data(chat=chat_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
     try:
         style = Style[user_data.get('style', 'ANIME_V2')]
     except:
         style=user_data.get('style', 'ANIME_V2')
-    msg=await bot.send_message(chat_id=chat_id,text= f"Creating image... {style}\n{ratio} \n{prompt}")
+    msg = await bot.send_message(chat_id=chat_id, text=f"Creating image... {style}\n{ratio} \n{prompt}",
+                                 reply_to_message_id=reply_to_id)
+
     try:
         if re.match('[а-яА-Я]+',prompt):
             prompt=translate_promt(prompt)
@@ -213,7 +215,8 @@ async def draw_and_answer(prompt,chat_id):
         photo=None
         kb=create_style_keyboard(prompt)
         if isinstance(style,Style):
-            photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}')
+            photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}',
+                                         reply_to_message_id=reply_to_id)
             img_file = await upscale_image(img_file)
         elif style==MIDJOURNEY:
             img_db = ImageMidjourney.create(prompt=prompt, url=url)
@@ -221,8 +224,9 @@ async def draw_and_answer(prompt,chat_id):
             btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in range(4)]
             kb.row(*btns)
 
-
-        photo2 = await bot.send_photo(chat_id=chat_id,photo=io.BytesIO(img_file), caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb)
+        photo2 = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file),
+                                      caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb,
+                                      reply_to_message_id=reply_to_id)
         user_data = await dp.storage.get_data(chat=chat_id)
         user_data['history'].append({'role':'system','content':f'Finished /draw command. Generated image based on "{prompt}" with {style} style and sent to chat.'})
         await dp.storage.set_data(chat=chat_id,data=user_data)
@@ -246,7 +250,8 @@ async def handle_draw(message: types.Message):
     user_data['history'].extend([
         {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {prompt}'}])
     await dp.storage.set_data(chat=chat_id, data=user_data)
-    await draw_and_answer(prompt,message.chat.id)
+    reply_to_id = message.message_id
+    await draw_and_answer(prompt,chat_id, reply_to_id)
 
 
 def create_settings_keyboard():
@@ -298,12 +303,12 @@ async def handle_style_and_ratio(message: types.Message,state:FSMContext):
         await message.reply("Unknown option.")
     await state.finish()
     await dp.storage.set_data(chat=message.chat.id, data=user_data)
-def process_draw_commands(response_text, pattern,chat_id):
+def process_draw_commands(response_text, pattern,chat_id,reply_id):
     while True:
         prompts = re.findall(pattern, response_text)
         if not prompts:
             break
         for prompt in prompts:
-            asyncio.create_task(draw_and_answer(prompt, chat_id))
+            asyncio.create_task(draw_and_answer(prompt, chat_id,reply_id))
         response_text = re.sub(pattern, '', response_text)
     return response_text

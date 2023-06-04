@@ -379,8 +379,8 @@ async def handle_message(message: types.Message,role='user'):
         user_data=await dp.storage.get_data(chat=user_id)
         user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
         await dp.storage.set_data(chat=user_id, data=user_data)
-        response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id)
-        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id)
+        response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)',message.chat.id,message.message_id)
+        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?',message.chat.id,message.message_id)
         response_text = process_search_commands(response_text, message,r'\/search (.+)\/?')
         response_text = process_search_commands(response_text, message,r'\/web (.+)\/?',coroutine=handle_web)
 
