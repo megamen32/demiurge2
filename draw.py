@@ -197,7 +197,7 @@ async def draw_and_answer(prompt,chat_id, reply_to_id):
     try:
         if re.match('[а-яА-Я]+',prompt):
             prompt=translate_promt(prompt)
-        if False:
+        if config.USE_API:
           moderate=await openai.Moderation.acreate(prompt)
           is_sexual= moderate['results'][0]['categories']['sexual']
         else: is_sexual=False
