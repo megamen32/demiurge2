@@ -197,6 +197,7 @@ async def draw_and_answer(prompt,chat_id, reply_to_id):
     try:
         if re.match('[а-яА-Я]+',prompt):
             prompt=translate_promt(prompt)
+            asyncio.create_task(msg.edit_text(f"Finishing image... {style}\n{ratio} \n{prompt}"))
         if config.USE_API:
           moderate=await openai.Moderation.acreate(prompt)
           is_sexual= moderate['results'][0]['categories']['sexual']
@@ -205,7 +206,7 @@ async def draw_and_answer(prompt,chat_id, reply_to_id):
             style=UNSTABILITY
         else:
             prompt = await improve_prompt(prompt, chat_id)
-            asyncio.create_task(msg.edit_text(prompt))
+        asyncio.create_task(msg.edit_text(f"Finishing image... {style}\n{ratio} \n{prompt}"))
         img_file,url = await gen_img(prompt, ratio, style)
         if img_file is None:
             await msg.edit_text("An error occurred while generating the image.")
