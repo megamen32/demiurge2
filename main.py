@@ -1,6 +1,7 @@
 import functools
 import subprocess
 import tempfile
+import traceback
 from datetime import datetime, timedelta
 
 from gtts import gTTS
@@ -24,6 +25,7 @@ from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 from image_caption import image_caption_generator
 
 openai.api_key=CHATGPT_API_KEY
+
 
 
 
@@ -352,7 +354,17 @@ async def handle_message(message: types.Message,role='user'):
         user_data['history'] = []
 
     # Добавьте сообщение пользователя в историю
-    # ... (ваш код сохранения истории)
+    if message.reply_to_message:
+        user = message.reply_to_message.from_user
+        from_ = user.full_name or user.username if not user.id == bot.id else user_data.get('ASSISTANT_NAME_SHORT',
+                                                                                            config.ASSISTANT_NAME_SHORT)
+        message.text = f'{message.text} (this message is in response to "{from_}" who said: {message.reply_to_message.text or message.reply_to_message.caption})'
+    if role == 'user':
+        text_ = f'{message.from_user.full_name or message.from_user.username}:{message.text}'
+        user_data['history'].append({"role": "user", "content": text_, 'message_id': message.message_id})
+    else:
+        user_data['history'].append({"role": "system", "content": f'{message.text}', 'message_id': message.message_id})
+    await dp.storage.set_data(chat=user_id, data=user_data)
 
     # Получите текущую задачу обработки для этого пользователя (если есть)
     current_processing_task = processing_tasks.get(user_id, None)
@@ -373,64 +385,73 @@ async def handle_message(message: types.Message,role='user'):
 
 async def wait_and_process_messages(user_id, message, user_data, role):
     msg=await message.reply('...')
-    await asyncio.sleep(3)  # ждем 3 секунды
-    user_data=await dp.storage.get_data(chat=user_id)
-    # Сформируйте ответ от GPT-3.5
-    history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-    ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
-    chat_response = await gpt_acreate(
-        model="gpt-3.5-turbo" if not config.useGPT4 else 'gpt-4',
-        messages=[
-                     {'role': 'system',
-                      'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                     {'role': 'system', 'content': f'{config.instructions}'}
-                 ] + history_for_openai
-    )
+    try:
+        await asyncio.sleep(3)  # ждем 3 секунды
+        user_data=await dp.storage.get_data(chat=user_id)
+        # Сформируйте ответ от GPT-3.5
+        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+        ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
+        chat_response = await gpt_acreate(
+            model="gpt-3.5-turbo" if not config.useGPT4 else 'gpt-4',
+            messages=[
+                         {'role': 'system',
+                          'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                         {'role': 'system', 'content': f'{config.instructions}'}
+                     ] + history_for_openai
+        )
 
-    # Добавьте ответ бота в историю
-    response_text = chat_response['choices'][0]['message']['content']
+        # Добавьте ответ бота в историю
+        response_text = chat_response['choices'][0]['message']['content']
 
-    while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
-        response_text = response_text.split(":", 1)[1].strip()
+        while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
+            response_text = response_text.split(":", 1)[1].strip()
 
-    ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
-    user_data = await dp.storage.get_data(chat=user_id)
-    user_data['history'].append(
-        {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
-    await dp.storage.set_data(chat=user_id, data=user_data)
-    response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
-    response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_id)
-    response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')
-    response_text = process_search_commands(response_text, message, r'\/web (.+)\/?', coroutine=handle_web)
+        ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
+        user_data = await dp.storage.get_data(chat=user_id)
+        user_data['history'].append(
+            {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
+        await dp.storage.set_data(chat=user_id, data=user_data)
+        response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
+        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_id)
+        response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')
+        response_text = process_search_commands(response_text, message, r'\/web (.+)\/?', coroutine=handle_web)
 
-    # Отправьте ответ пользователю
-    if response_text:
+        # Отправьте ответ пользователю
+        if response_text:
 
-        try:
-            await msg.edit_text(response_text[:4096])
-            if config.TTS:
-                asyncio.create_task(send_tts(message, msg, response_text))
-        except:
-            traceback.print_exc()
-        # await dp.storage.set_data(chat=chat_id, data=user_data)
-    else:
+            try:
+                await msg.edit_text(response_text[:4096])
+                if config.TTS:
+                    asyncio.create_task(send_tts(message, msg, response_text))
+            except:
+                traceback.print_exc()
+            # await dp.storage.set_data(chat=chat_id, data=user_data)
+        else:
+            await msg.delete()
+
+        if count_tokens([{'role': 'system',
+                          'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                         ] + user_data['history']) > gpt.MAX_TOKENS:
+            history_for_openai = [{'role': 'system',
+                                   'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                  ] + [{"role": item["role"], "content": item["content"]} for item in
+                                       user_data['history'][:-2]]
+            summary = await summary_gpt(history_for_openai)
+            asyncio.create_task(message.answer('Короче:\n' + summary))
+            # Замените историю диалога суммарным представлением
+            last_msg = user_data['history'][-2:]
+            user_data['history'] = [{"role": "assistant", "content": summary}]
+            user_data['history'].extend(last_msg)
+
+        await dp.storage.set_data(chat=user_id, data=user_data)
+    except CancelledError:
         await msg.delete()
+    except:
+        traceback.print_exc()
+        await msg.edit_text(f'Error in getting answer {traceback.format_exc()}')
 
-    if count_tokens([{'role': 'system',
-                      'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                     ] + user_data['history']) > gpt.MAX_TOKENS:
-        history_for_openai = [{'role': 'system',
-                               'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                              ] + [{"role": item["role"], "content": item["content"]} for item in
-                                   user_data['history'][:-2]]
-        summary = await summary_gpt(history_for_openai)
-        asyncio.create_task(message.answer('Короче:\n' + summary))
-        # Замените историю диалога суммарным представлением
-        last_msg = user_data['history'][-2:]
-        user_data['history'] = [{"role": "assistant", "content": summary}]
-        user_data['history'].extend(last_msg)
 
-    await dp.storage.set_data(chat=user_id, data=user_data)
+
 
 
 async def send_tts(message, msg, response_text):

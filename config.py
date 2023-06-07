@@ -17,6 +17,26 @@ storage = RedisStorage2(prefix='demiurge')
 dp = Dispatcher(bot, storage=storage)
 useGPT4=False
 USE_API=True
+import logging
+
+# Настройка форматера
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Настройка логгера, который будет выводить сообщения в консоль
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(formatter)
+
+# Настройка логгера, который будет выводить сообщения в файл
+file_handler = logging.FileHandler('bot.log')
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+# Настройка корневого логгера
+logger = logging.getLogger('aiogram')
+logger.setLevel(logging.DEBUG)
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 def get_first_word(string):
     words = string.split()
     if words:

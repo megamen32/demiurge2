@@ -1,6 +1,7 @@
 # Настройка глобальной переменной для очереди
 import asyncio
 import re
+from asyncio import InvalidStateError
 
 import openai
 from aiolimiter import AsyncLimiter
@@ -16,6 +17,7 @@ async def process_queue():
         try:
             result = await agpt(**task['params'])
             task['future'].set_result(result)
+        except InvalidStateError:pass
         except Exception as e:
             task['future'].set_exception(e)
         finally:
