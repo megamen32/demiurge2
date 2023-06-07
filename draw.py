@@ -193,7 +193,7 @@ async def draw_and_answer(prompt,chat_id, reply_to_id):
         style=user_data.get('style', 'ANIME_V2')
     msg = await bot.send_message(chat_id=chat_id, text=f"Creating image... {style}\n{ratio} \n{prompt}",
                                  reply_to_message_id=reply_to_id)
-
+    error=False
     try:
         if re.match('[а-яА-Я]+',prompt):
             prompt=translate_promt(prompt)
@@ -234,11 +234,15 @@ async def draw_and_answer(prompt,chat_id, reply_to_id):
         if photo is not None:
             await photo.delete()
     except:
+        error=True
         traceback.print_exc()
         if msg is None:
             await bot.send_message(chat_id, "An error occurred while generating the image.")
         else:
             await msg.edit_text("An error occurred while generating the image.")
+    finally:
+        if not error :
+            await msg.delete()
 
 @dp.message_handler(commands=['draw'])
 async def handle_draw(message: types.Message):
