@@ -77,7 +77,7 @@ async def improve_prompt(prompt, chat_id):
 
     # If the language is not English, translate and improve it
     if lang == 'ru' or lang =='uk' or lang=='mk':
-        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data , user_id = await get_chat_data(message)
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in history]
         chat_response = await gpt_acreate(
@@ -115,7 +115,7 @@ You will receive a text prompt and then create one creative prompt for the Midjo
         if improved_prompt.startswith('draw'):
             improved_prompt=improved_prompt.replace('draw','',1)
 
-        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data , user_id = await get_chat_data(message)
         user_data['history'].extend([
             {'role': 'system', 'content': f'Improved image generation prompt from "{prompt}" to "{improved_prompt}. And starts drawing."'}])
         await dp.storage.set_data(chat=chat_id, data=user_data)
@@ -162,7 +162,7 @@ def create_style_keyboard(prompt):
 @dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
 async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
-    user_data = await dp.storage.get_data(chat=query.message.chat.id)
+    user_data , user_id = await get_chat_data(message)
     _,id,text = query.data.split('_',2)
     prompt=Prompt.get_by_id(id).text
     if text in Style.__members__ or text in [MIDJOURNEY,UNSTABILITY]:
@@ -185,7 +185,7 @@ def translate_promt(prompt):
 
 
 async def draw_and_answer(prompt,chat_id, reply_to_id):
-    user_data = await dp.storage.get_data(chat=chat_id)
+    user_data , user_id = await get_chat_data(message)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
     try:
         style = Style[user_data.get('style', 'ANIME_V2')]

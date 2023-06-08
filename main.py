@@ -33,7 +33,7 @@ openai.api_key=CHATGPT_API_KEY
 @dp.message_handler(commands=['promt'])
 async def change_role(message: types.Message):
     # Получение настроек для этого чата
-    data = await dp.storage.get_data(chat=message.chat.id)
+    data , user_id = await get_chat_data(message)
 
     # Обновление настроек
     text = message.text.split(' ', 1)[-1]
@@ -50,7 +50,7 @@ async def show_history(message: types.Message):
     m = await message.reply('...')
     try:
         user_id = message.chat.id
-        text = await get_history(user_id)
+        text = await get_history(message)
         if text is None:
             text = 'История пуста'
         await m.edit_text(text=text[-4090:])
@@ -59,8 +59,8 @@ async def show_history(message: types.Message):
         await m.edit_text('Не удалось получить ответ от Демиурга')
 
 
-async def get_history(user_id):
-    user_data = await dp.storage.get_data(chat=user_id)
+async def get_history(message):
+    user_data, user_id = await get_chat_data(message)
     if 'history' in user_data:
         history = user_data['history']
         history_text = ''
@@ -78,7 +78,7 @@ async def clear_history(message: types.Message):
     msg = await message.reply('...')
     try:
         user_id = message.chat.id
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
 
         if 'history' in user_data and user_data['history']:
             user_data['history'] = []
@@ -96,7 +96,7 @@ async def summarize_history(message: types.Message):
         user_id = message.chat.id
         summary = await get_summary( user_id)
         if summary is not None:
-            user_data = await dp.storage.get_data(chat=user_id)
+            user_data, user_id = await get_chat_data(message)
             # Замените историю диалога суммарным представлением
             user_data['history'] = [{"role": "assistant", "content": summary}]
             await dp.storage.set_data(chat=user_id, data=user_data)
@@ -109,12 +109,11 @@ async def summarize_history(message: types.Message):
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
 
-async def get_summary( user_id):
-    history_text = await get_history(user_id)
-    user_data=await dp.storage.get_data(chat=user_id)
+async def get_summary( message):
+    user_data, user_id = await get_chat_data(message)
     ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
 
-    if history_text is not None:
+    if user_data.get('history',None) is not None:
         history_for_openai = [{'role': 'system',
                                'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
                               ] + [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
@@ -128,7 +127,7 @@ async def handle_voice(message: types.Message):
     msg = await message.reply('...')
     try:
         user_id = message.chat.id
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
 
         # Получите файл голосового сообщения
         file_id = message.voice.file_id
@@ -151,7 +150,7 @@ async def handle_photo(message: types.Message):
     msg = await message.reply('...')
     try:
         user_id = message.chat.id
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
 
         # Получите файл голосового сообщения
         file_id = message.photo[-1].file_id
@@ -180,7 +179,7 @@ async def handle_video(message: types.Message):
     msg = await message.reply('...')
     try:
         user_id = message.chat.id
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
 
         # Получите файл голосового сообщения
         file_id = message.video.file_id
@@ -237,7 +236,7 @@ from imagine import *
 async def handle_edited_message(message: types.Message):
     try:
         user_id = message.chat.id
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
 
         if 'history' not in user_data:
             user_data['history'] = []
@@ -305,7 +304,7 @@ async def handle_chat_update(message: types.Message):
 
     user = message.from_user
     user_id = message.chat.id
-    user_data = await dp.storage.get_data(chat=user_id)
+    user_data, user_id = await get_chat_data(message)
 
     # Если история пользователя не существует, создайте новую
     if 'history' not in user_data:
@@ -345,8 +344,7 @@ processing_tasks = {}
 
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message,role='user'):
-    user_id = message.chat.id
-    user_data = await dp.storage.get_data(chat=user_id)
+    user_data, user_id = await get_chat_data(message)
     user_data['last_message_time'] = datetime.now().timestamp()
 
     # Если история пользователя не существует, создайте новую
@@ -383,11 +381,25 @@ async def handle_message(message: types.Message,role='user'):
 
     await dp.storage.set_data(chat=user_id, data=user_data)
 
+
+async def get_chat_data(message:types.Message):
+    thread_id = 'default'
+    user_id = message.chat.id
+    if message.message_thread_id:
+        thread_id = message.message_thread_id
+        storage_id = f"{user_id}-{thread_id}"
+    else:
+        storage_id = f"{user_id}"
+    # Получение данных для определенного потока из хранилища
+    user_data , user_id = await dp.storage.get_data(chat=storage_id)
+    return user_data, storage_id
+
+
 async def wait_and_process_messages(user_id, message, user_data, role):
     msg=await message.reply('...')
     try:
         await asyncio.sleep(3)  # ждем 3 секунды
-        user_data=await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
         # Сформируйте ответ от GPT-3.5
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
         ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
@@ -407,7 +419,7 @@ async def wait_and_process_messages(user_id, message, user_data, role):
             response_text = response_text.split(":", 1)[1].strip()
 
         ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
-        user_data = await dp.storage.get_data(chat=user_id)
+        user_data, user_id = await get_chat_data(message)
         user_data['history'].append(
             {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
         await dp.storage.set_data(chat=user_id, data=user_data)

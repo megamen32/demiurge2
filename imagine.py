@@ -76,7 +76,7 @@ async def handle_imagine(message: types.Message):
         chat_id=message.chat.id
 
 
-        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data , user_id = await get_chat_data(message)
         user_data['history'].extend([
             {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
         await dp.storage.set_data(chat=chat_id,data=user_data)
@@ -224,7 +224,7 @@ async def handle_imagine(message: types.Message):
         chat_id=message.chat.id
 
 
-        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data , user_id = await get_chat_data(message)
         user_data['history'].extend([
             {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
         await dp.storage.set_data(chat=chat_id,data=user_data)

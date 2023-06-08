@@ -1,8 +1,3 @@
-import torch
-import re
-from PIL import Image
-
-from transformers import AutoTokenizer, ViTFeatureExtractor, VisionEncoderDecoderModel
 
 model=None
 
@@ -11,6 +6,9 @@ def lazy_load_model():
     global feature_extractor
     global tokenizer
     global model
+
+
+    from transformers import AutoTokenizer, ViTFeatureExtractor, VisionEncoderDecoderModel
 
     device = 'cuda'
     encoder_checkpoint = "nlpconnect/vit-gpt2-image-captioning"
@@ -35,6 +33,7 @@ def predict(image, max_length=64, num_beams=4):
     return caption_text
 
 if __name__=='__main__':
+    from PIL import Image
     input = Image.open('image_0.png')
     examples = [f"image_{i}.png" for i in range(1, 7)]
 
