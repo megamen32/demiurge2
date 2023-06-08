@@ -6,7 +6,7 @@ from asyncio import InvalidStateError
 import openai
 from aiolimiter import AsyncLimiter
 from openai.error import RateLimitError
-from transformers import GPT2Tokenizer
+
 
 import config
 request_queue = asyncio.Queue()
@@ -34,7 +34,7 @@ my_session_tokens = ['eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ik1UaEVOVUpHTk
 
 async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
-    if config.USE_API:
+    if config.USE_API and params['model']!='gpt-4':
         while True:
             async with rate_limiter:
                 try:
@@ -88,6 +88,7 @@ tokenizer=None
 def count_tokens(history):
     global tokenizer
     if tokenizer is None:
+        from transformers import GPT2Tokenizer
         tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
     tokens=0

@@ -11,6 +11,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bs4 import BeautifulSoup
 
 import config
+import tgbot
 import trends
 from config import dp
 from datebase import ImageMidjourney
@@ -76,11 +77,6 @@ async def handle_imagine(message: types.Message):
     try:
         chat_id=message.chat.id
 
-
-        user_data , user_id = await get_chat_data(message)
-        user_data['history'].extend([
-            {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
-        await dp.storage.set_data(chat=chat_id,data=user_data)
         prompt = await improve_prompt(prompt,chat_id)
         asyncio.create_task( msg.edit_text(prompt))
         img_data=None
@@ -102,10 +98,11 @@ async def handle_imagine(message: types.Message):
         btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_+1}_{img_db.id}") for _ in range(4)]
         kb.row(*btns)
         photo=await message.answer_photo(photo=io.BytesIO(img_data),caption=prompt,reply_markup=kb)
-        await msg.delete()
     except:
         traceback.print_exc()
         await message.answer('An error occurred while generating the image.')
+    finally:
+        await msg.delete()
 
 @dp.callback_query_handler(lambda c:c.data.startswith("imagine_"))
 async def handle_draw_callback(query: types.CallbackQuery):
@@ -113,7 +110,7 @@ async def handle_draw_callback(query: types.CallbackQuery):
     number=int(number)
     img_db = ImageMidjourney.get(id=img_id)
     await query.answer(f'... upscaling {number}')
-    msg=await query.message.reply(f'... upscaling {img_db.prompt} {number}')
+    msg = await query.message.reply(f'... upscaling {img_db.prompt} {number}')
     if img_db:
         img_data=None
         try:
@@ -123,8 +120,8 @@ async def handle_draw_callback(query: types.CallbackQuery):
         if img_data:
             await query.message.answer_photo(photo=img_data,caption=img_db.prompt)
             await msg.delete()
-        else:
-            await msg.edit_text("An error occurred while upscalling the image.")
+            return
+    await msg.edit_text("An error occurred while upscalling the image.")
 
 @dp.message_handler(commands=['web'])
 @dp.message_handler(regexp=r'https?://[^\s]+')
@@ -146,6 +143,7 @@ async def handle_web(message: types.Message):
 
         message_text = message.text
         message.text=await shorten(message_text)
+        await tgbot.dialog_append(message,message.text,'system')
 
         from main import handle_message
         return await handle_message(message,role='system')
@@ -160,7 +158,7 @@ def open_url(url):
     article.download()
     article.parse()
     if article.text:
-        text = f'Скинул сайт {url}, дата публикации {article.publish_date}, Авторы :{", ".join(article.authors)} вот содержимое: {article.text}'
+        text = f'Скинул сайт {url}, вот содержимое: {article.text}'
     else:
         r = requests.get(url)
         soup = BeautifulSoup(r.content, 'html.parser')
@@ -190,6 +188,7 @@ async def handle_search(message: types.Message):
 
     await msg.edit_text(text)
     message.text=f'Search results for "{promt}":\n {text}'
+    await tgbot.dialog_append(message, message.text, 'system')
     from main import handle_message
     return await handle_message(message,role='system')
 

@@ -13,7 +13,9 @@ import openai
 from aiogram.types import BotCommand
 import speech_recognition as sr
 
+import config
 import gpt
+import tgbot
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
 from datebase import Prompt, ImageUnstability
 from draw import process_draw_commands
@@ -21,7 +23,9 @@ from draw import process_draw_commands
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 from image_caption import image_caption_generator
-from tgbot import get_chat_data
+from telegrambot.handlers import MessageLoggingMiddleware
+from tgbot import dialog_append
+
 
 openai.api_key=CHATGPT_API_KEY
 
@@ -44,15 +48,54 @@ async def change_role(message: types.Message):
 
     await message.reply(f'Now i am {data["ASSISTANT_NAME_SHORT"]}:\n' + text)
 
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('history'))
+async def process_callback_history_button(callback_query: types.CallbackQuery):
+    _, action, start, end = callback_query.data.split(";")
+    start = int(start)
+    end = int(end)
+
+    if action == "next":
+        start += 4090
+        end += 4090
+    elif action == "prev":
+        start -= 4090
+        end -= 4090
+
+    text = await get_history(callback_query.message)
+
+    # Часть истории, которую нужно показать
+    text_to_show = text[start:end]
+
+    # Кнопки для навигации
+    keyboard = InlineKeyboardMarkup()
+
+    if start > 0:
+        keyboard.add(InlineKeyboardButton("Назад", callback_data=f"history;prev;{start};{end}"))
+
+    if len(text) > end:
+        keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;{start};{end}"))
+
+    await bot.edit_message_text(text=text_to_show, chat_id=callback_query.message.chat.id,
+                                message_id=callback_query.message.message_id, reply_markup=keyboard)
+
 @dp.message_handler(commands=['history'])
 async def show_history(message: types.Message):
     m = await message.reply('...')
     try:
-
         text = await get_history(message)
-        if text is None:
-            text = 'История пуста'
-        await m.edit_text(text=text[-4090:])
+
+        # Часть истории, которую нужно показать
+        text_to_show = text[:4090]
+
+        # Кнопки для навигации
+        keyboard = InlineKeyboardMarkup()
+
+        if len(text) > 4090:
+            keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;4090;8190"))
+
+        await m.edit_text(text=text_to_show, reply_markup=keyboard)
     except:
         traceback.print_exc()
         await m.edit_text('Не удалось получить ответ от Демиурга')
@@ -62,7 +105,7 @@ async def get_history(message):
     user_data, chat_id = await get_chat_data(message)
     if 'history' in user_data:
         history = user_data['history']
-        history_text = ''
+        history_text = user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)+'\n'
         for msg in history:
             role = 'Система: ' if msg['role'] == 'system' else ""
             history_text += f'{role}{msg["content"]}\n'
@@ -87,6 +130,7 @@ async def clear_history(message: types.Message):
         traceback.print_exc()
         await msg.edit_text('Не удалось очистить историю диалога.')
 
+
 @dp.message_handler(commands=['summarize'])
 async def summarize_history(message: types.Message):
     msg = await message.reply('...')
@@ -97,7 +141,7 @@ async def summarize_history(message: types.Message):
         if summary is not None:
             user_data, chat_id = await get_chat_data(message)
             # Замените историю диалога суммарным представлением
-            user_data['history'] = [{"role": "assistant", "content": summary}]
+            user_data['history'] = [{"role": config.Role_ASSISTANT, "content": summary}]
             await dp.storage.set_data(chat=chat_id, data=user_data)
 
             await msg.edit_text( text=f"История диалога была суммирована:\n{summary}")
@@ -164,9 +208,7 @@ async def handle_photo(message: types.Message):
         message.text = f'User sends your photo, that ai recognized as "{text}"'
         if message.caption:
             user=message.from_user
-            user_data['history'].append(
-                {'role': 'system', 'content': f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"'})
-            await dp.storage.set_data(chat=chat_id)
+            await dialog_append(message,role='system', content= f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"')
             message.text=f'{message.caption}'
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
         return await handle_message(message,role='system')
@@ -197,7 +239,7 @@ async def handle_video(message: types.Message):
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
-import whisper
+
 speech_model=None
 def recognize(file_id,ext='.ogg'):
     # Преобразование аудиофайла в формат WAV для распознавания речи
@@ -205,6 +247,7 @@ def recognize(file_id,ext='.ogg'):
     if False:
         global speech_model
         if speech_model is None:
+            import whisper
             speech_model = whisper.load_model("small")
         result = speech_model.transcribe(f"{file_id}{ext}")
         text=(result["text"])
@@ -229,7 +272,23 @@ def recognize_old(file_id):
     return text
 
 
+@dp.message_handler(commands=['gpt4'])
+async def switch_gpt4_mode(message: types.Message):
+    # Получение данных пользователя
+    user_data,chat_id = await get_chat_data(message)
 
+    # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
+    use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
+
+    # Переключение режима use_gpt_4
+    use_gpt_4 = not use_gpt_4
+
+    # Сохранение нового значения в данных пользователя
+    user_data['gpt-4'] = use_gpt_4
+    await dp.storage.set_data(chat=chat_id, data=user_data)
+
+    # Отправка сообщения пользователю об изменении режима
+    await message.reply(f"GPT-4 mode is now {'ON' if use_gpt_4 else 'OFF'}.")
 from imagine import *
 @dp.edited_message_handler(content_types=types.ContentType.TEXT)
 async def handle_edited_message(message: types.Message):
@@ -251,6 +310,7 @@ async def handle_edited_message(message: types.Message):
         except:
             traceback.print_exc()
 
+        await dialog_append(message,message.text)
         await handle_message(message)
 
 
@@ -259,15 +319,7 @@ async def handle_edited_message(message: types.Message):
         await message.answer('Не удалось получить ответ от Демиурга')
 
 
-async def shorten_history( user_data, chat_id):
-    summary = await get_summary(chat_id)
-    asyncio.create_task(bot.send_message(chat_id=chat_id,text='Короче:\n' + summary))
-    last_msg = user_data['history'][-2:]
-    user_data['history'] = [{"role": "assistant", "content": summary}]
-    user_data['history'].extend(last_msg)
 
-
-import pyttsx3
 engine=None
 def text_to_speech(text):
     global engine
@@ -276,6 +328,7 @@ def text_to_speech(text):
         filename = fp.name + ".mp3"
 
     if engine is None:
+        import pyttsx3
         engine = pyttsx3.init()
         # Открывайте и просматривайте доступные голоса, чтобы выбрать мужской голос
         voices = engine.getProperty('voices')
@@ -344,24 +397,6 @@ processing_tasks = {}
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message,role='user'):
     user_data, chat_id = await get_chat_data(message)
-    user_data['last_message_time'] = datetime.now().timestamp()
-
-    # Если история пользователя не существует, создайте новую
-    if 'history' not in user_data:
-        user_data['history'] = []
-
-    # Добавьте сообщение пользователя в историю
-    if message.reply_to_message:
-        user = message.reply_to_message.from_user
-        from_ = user.full_name or user.username if not user.id == bot.id else user_data.get('ASSISTANT_NAME_SHORT',
-                                                                                            config.ASSISTANT_NAME_SHORT)
-        message.text = f'{message.text} (this message is in response to "{from_}" who said: {message.reply_to_message.text or message.reply_to_message.caption})'
-    if role == 'user':
-        text_ = f'{message.from_user.full_name or message.from_user.username}:{message.text}'
-        user_data['history'].append({"role": "user", "content": text_, 'message_id': message.message_id})
-    else:
-        user_data['history'].append({"role": "system", "content": f'{message.text}', 'message_id': message.message_id})
-    await dp.storage.set_data(chat=chat_id, data=user_data)
 
     # Получите текущую задачу обработки для этого пользователя (если есть)
     current_processing_task = processing_tasks.get(chat_id, None)
@@ -384,39 +419,42 @@ async def handle_message(message: types.Message,role='user'):
 async def wait_and_process_messages(chat_id, message, user_data, role):
     msg=await message.reply('...')
     try:
-        await asyncio.sleep(3)  # ждем 3 секунды
-        user_data, chat_id = await get_chat_data(message)
-        # Сформируйте ответ от GPT-3.5
-        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-        ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
-        chat_response = await gpt_acreate(
-            model="gpt-3.5-turbo" if not config.useGPT4 else 'gpt-4',
-            messages=[
-                         {'role': 'system',
-                          'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                         {'role': 'system', 'content': f'{config.instructions}'}
-                     ] + history_for_openai
-        )
+        lock = dialog_locks.get(chat_id, asyncio.Lock())
+        dialog_locks[chat_id] = lock
+        if lock.locked():
+            await asyncio.sleep(3)  # ждем 3 секунды
+        async with lock:
+            user_data, chat_id = await get_chat_data(message)
+            # Сформируйте ответ от GPT-3.5
+            history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+            ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
+            use_gpt_4= user_data.get('gpt-4',config.useGPT4)
 
-        # Добавьте ответ бота в историю
-        response_text = chat_response['choices'][0]['message']['content']
+            chat_response = await gpt_acreate(
+                model="gpt-3.5-turbo" if not use_gpt_4 else 'gpt-4',
+                messages=[
+                             {'role': 'system',
+                              'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                             {'role': config.Role_SYSTEM, 'content': f'{config.instructions}'}
+                         ] + history_for_openai
+            )
+            # Добавьте ответ бота в историю
+            response_text = chat_response['choices'][0]['message']['content']
 
-        while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
-            response_text = response_text.split(":", 1)[1].strip()
+            while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
+                response_text = response_text.split(":", 1)[1].strip()
 
-        ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
-        user_data, chat_id = await get_chat_data(message)
-        user_data['history'].append(
-            {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
-        await dp.storage.set_data(chat=chat_id, data=user_data)
+            ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
+            response_text_ = f"{ASSISTANT_NAME_SHORT}:{response_text}"
+            user_data,chat_id = await dialog_append(message, response_text_, role=config.Role_ASSISTANT, message_id=msg.message_id)
         response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
         response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_id)
         response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')
         response_text = process_search_commands(response_text, message, r'\/web (.+)\/?', coroutine=handle_web)
 
+        asyncio.create_task(do_short_dialog(chat_id, user_data))
         # Отправьте ответ пользователю
         if response_text:
-
             try:
                 await msg.edit_text(response_text[:4096])
                 if config.TTS:
@@ -427,28 +465,50 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
         else:
             await msg.delete()
 
-        if count_tokens([{'role': 'system',
-                          'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                         ] + user_data['history']) > gpt.MAX_TOKENS:
-            history_for_openai = [{'role': 'system',
-                                   'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                                  ] + [{"role": item["role"], "content": item["content"]} for item in
-                                       user_data['history'][:-2]]
-            summary = await summary_gpt(history_for_openai)
-            asyncio.create_task(message.answer('Короче:\n' + summary))
-            # Замените историю диалога суммарным представлением
-            last_msg = user_data['history'][-2:]
-            user_data['history'] = [{"role": "assistant", "content": summary}]
-            user_data['history'].extend(last_msg)
-
-        await dp.storage.set_data(chat=chat_id, data=user_data)
     except CancelledError:
         await msg.delete()
     except:
         traceback.print_exc()
         await msg.edit_text(f'Error in getting answer {traceback.format_exc()}')
 
+from aiogram import types
 
+
+
+# Создайте глобальную блокировку
+dialog_locks = {}
+async def do_short_dialog(chat_id, user_data):
+    MAX_MEMORY_SIZE = gpt.MAX_TOKENS  # установите максимальный размер памяти
+
+    # Определите, сколько сообщений вы хотите сохранить в оригинальном виде
+    num_recent_messages_to_keep = 2
+
+
+    lock = dialog_locks.get(chat_id, asyncio.Lock())
+    dialog_locks[chat_id] = lock
+
+    # Управление памятью должно быть синхронизировано, чтобы предотвратить одновременную запись.
+    async with lock:
+        total_memory_size = count_tokens(user_data['history'])
+        # Проверьте, превышает ли текущий размер памяти максимальный размер
+        if total_memory_size > MAX_MEMORY_SIZE:
+            # Сохраните последние сообщения
+            recent_messages = user_data['history'][-num_recent_messages_to_keep:]
+
+            # Удалите сохраненные сообщения из истории
+            remaining_history = user_data['history'][:-num_recent_messages_to_keep]
+
+            # Сгенерируйте суммарное представление оставшейся истории
+            summary = await summary_gpt(remaining_history)
+
+            # Обновите историю, заменив оставшуюся часть на суммарное представление
+            updated_history = [{"role": config.Role_ASSISTANT, "content": summary}] + recent_messages
+
+            # Сохраните обновленную историю в данных пользователя
+            user_data['history'] = updated_history
+
+            # Обновите данные пользователя в хранилище
+            await dp.storage.set_data(chat=chat_id, data=user_data)
 
 
 
@@ -463,21 +523,11 @@ async def send_tts(message, msg, response_text):
         await msg.delete()
 
 
-async def on_startup(dp):
-    # Установите здесь ваши команды
-    asyncio.create_task(process_queue())
-    await bot.set_my_commands([
-        BotCommand("history", "Показать историю диалога"),
-        BotCommand("summarize", "Суммировать историю диалога"),
-        BotCommand("clear", "Clear историю диалога"),
-        BotCommand("promt", "Edit gpt start promt"),
-        BotCommand("draw_settings", "draw settings"),
-        BotCommand("draw", "{prompt} draws an image"),
-        BotCommand("imagine", "{prompt} draws an image"),
-        BotCommand("trends", "get all news and trends"),
-        # Добавьте здесь любые дополнительные команды
-    ])
+
 import redis
+
+from aiogram.utils.exceptions import BotKicked, BotBlocked
+
 
 async def check_inactive_users():
     while True:
@@ -489,41 +539,42 @@ async def check_inactive_users():
 
         for key in all_keys:
             # Достаём chat_id из ключа
-            chat_id = key.decode("utf-8").split(":")[1]
+            storage_id = key.decode("utf-8").split(":")[1]
+
             # Получаем данные пользователя из aiogram storage
-            user_data = await dp.storage.get_data(chat=chat_id)
+            user_data = await dp.storage.get_data(chat=storage_id)
+            thread_id = None
+            if '&' in storage_id:
+                chat_id, thread_id = storage_id.split('&')
+            else:
+                chat_id=storage_id
 
             if 'last_message_time' not in user_data:
                 continue
             last_message_time = datetime.fromtimestamp(user_data['last_message_time'])
-            if datetime.now() - last_message_time > timedelta(seconds=30):  # если прошло 24 часа
+            if datetime.now() - last_message_time > timedelta(hours=24):  # если прошло 24 часа
                 # генерируем сообщение
                 ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
+
+                await tgbot.dialog_append_raw(storage_id, 'Пользователь не взаимодействовал в течение 24 часов. Вы должны напомнить о себе.', None, 'system')
+                user_data = await dp.storage.get_data(chat=storage_id)
                 history_for_openai = [{'role': 'system',
                                        'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
                                       ] + [{"role": item["role"], "content": item["content"]} for item in
                                            user_data['history']]
                 chat_response = await gpt_acreate(
                     model="gpt-3.5-turbo",
-                    messages=history_for_openai+[
-                        {'role': 'system', 'content': 'Пользователь не взаимодействовал в течение 24 часов.'},
-                        {'role': 'system', 'content': 'Вы должны напомнить о себе.'}
-                    ]
+                    messages=history_for_openai
                 )
                 response_text = chat_response['choices'][0]['message']['content']
+
                 # отправляем сообщение
-                await dp.bot.send_message(chat_id=chat_id, text=response_text)
+                try:
+                    msg = await dp.bot.send_message(chat_id=chat_id, text=response_text,reply_to_message_id=thread_id)
+
+
+                    await tgbot.dialog_append_raw(storage_id,response_text,None,'assistant',message_id=msg.message_id)
+                except (BotKicked,BotBlocked):
+                    # Бот был исключён из чата, удаляем данные о чате
+                    await dp.storage.reset_data(chat=storage_id)
         await asyncio.sleep(3600)  # ждём час перед следующей проверкой
-
-
-
-if __name__ == '__main__':
-    if not Prompt.table_exists(): Prompt.create_table()
-    if not ImageMidjourney.table_exists(): ImageMidjourney.create_table()
-    if not ImageUnstability.table_exists(): ImageUnstability.create_table()
-    #start Midjourney-Web-API/app.py
-    subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
-    loop = asyncio.new_event_loop()
-    loop.create_task(check_inactive_users())
-    loop.create_task(loop.run_in_executor(None,executor.start_polling(dp, on_startup=on_startup)))
-    loop.run_forever()

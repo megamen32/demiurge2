@@ -24,7 +24,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 
 # Настройка логгера, который будет выводить сообщения в консоль
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 
 # Настройка логгера, который будет выводить сообщения в файл
@@ -34,7 +34,7 @@ file_handler.setFormatter(formatter)
 
 # Настройка корневого логгера
 logger = logging.getLogger('aiogram')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 def get_first_word(string):
@@ -60,3 +60,6 @@ STABILITY_KEY=config('STABILITY_KEY')
 CX=config('CX')
 GOOGLE_SEARCH_API=config('GOOGLE_SEARCH_API')
 TTS=config('TTS',default=False,cast=bool)
+Role_ASSISTANT = 'assistant'
+Role_USER = 'user'
+Role_SYSTEM = 'system'

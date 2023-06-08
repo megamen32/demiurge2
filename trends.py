@@ -1,11 +1,12 @@
 import pandas as pd
 import requests
-from GoogleNews import GoogleNews
+
 
 import config
 
 
 def get_news2(text:str=' '):
+    from GoogleNews import GoogleNews
     googlenews = GoogleNews(lang='ru')
     if not text or not any(text):
         text=' '
