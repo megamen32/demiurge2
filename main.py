@@ -138,7 +138,7 @@ async def summarize_history(message: types.Message):
             user_data, chat_id = await get_chat_data(message)
             await do_short_dialog(chat_id, user_data)
             summary=await get_history(message)
-            await msg.edit_text( text=f"История диалога была суммирована:\n{summary}")
+            await msg.edit_text( text=f"История диалога была суммирована:\n{summary[:3800]}")
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
