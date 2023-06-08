@@ -16,6 +16,7 @@ from config import dp
 from datebase import ImageMidjourney
 from draw import improve_prompt
 from gpt import shorten
+from tgbot import get_chat_data
 
 
 async def generate_image_midjourney(prompt):

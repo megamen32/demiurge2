@@ -19,6 +19,7 @@ from aiogram import types
 from config import dp, bot
 from datebase import Prompt, ImageMidjourney
 from gpt import gpt_acreate
+from tgbot import get_chat_data, get_chat_data_raw
 
 MIDJOURNEY = 'MIDJOURNEY'
 UNSTABILITY = 'UNSTABILITY'
@@ -77,7 +78,7 @@ async def improve_prompt(prompt, chat_id):
 
     # If the language is not English, translate and improve it
     if lang == 'ru' or lang =='uk' or lang=='mk':
-        user_data , user_id = await get_chat_data(message)
+        user_data  = await dp.storage.get_data(chat=chat_id)
         history = user_data.get('history', [])
         history_for_openai = [{"role": item["role"], "content": item["content"]} for item in history]
         chat_response = await gpt_acreate(
@@ -162,7 +163,7 @@ def create_style_keyboard(prompt):
 @dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
 async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
-    user_data , user_id = await get_chat_data(message)
+    user_data , user_id = await get_chat_data(query.message)
     _,id,text = query.data.split('_',2)
     prompt=Prompt.get_by_id(id).text
     if text in Style.__members__ or text in [MIDJOURNEY,UNSTABILITY]:
@@ -185,7 +186,7 @@ def translate_promt(prompt):
 
 
 async def draw_and_answer(prompt,chat_id, reply_to_id):
-    user_data , user_id = await get_chat_data(message)
+    user_data , user_id = await get_chat_data_raw(chat_id,reply_to_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
     try:
         style = Style[user_data.get('style', 'ANIME_V2')]
@@ -228,7 +229,7 @@ async def draw_and_answer(prompt,chat_id, reply_to_id):
         photo2 = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file),
                                       caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb,
                                       reply_to_message_id=reply_to_id)
-        user_data = await dp.storage.get_data(chat=chat_id)
+        user_data , chat_id = await get_chat_data(message)
         user_data['history'].append({'role':'system','content':f'Finished /draw command. Generated image based on "{prompt}" with {style} style and sent to chat.'})
         await dp.storage.set_data(chat=chat_id,data=user_data)
         if photo is not None:
@@ -250,8 +251,8 @@ async def handle_draw(message: types.Message):
     if not prompt:
         await message.reply("Please provide a description for the image.")
         return
-    chat_id=message.chat.id
-    user_data = await dp.storage.get_data(chat=chat_id)
+
+    user_data , chat_id = await get_chat_data(message)
     user_data['history'].extend([
         {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {prompt}'}])
     await dp.storage.set_data(chat=chat_id, data=user_data)
@@ -285,7 +286,7 @@ class DrawingSettings(StatesGroup):
 async def handle_draw_settings(message: types.Message,state:FSMContext):
     keyboard = create_settings_keyboard()
     await DrawingSettings.settings.set()
-    user_data = await dp.storage.get_data(chat=message.chat.id)
+    user_data , chat_id = await get_chat_data(message)
     style = user_data.get('style', 'ANIME_V2')
     if style in Style.__members__:
         style = Style[style]
@@ -296,7 +297,7 @@ async def handle_draw_settings(message: types.Message,state:FSMContext):
     await message.reply(f"Please choose style and ratio for your drawings.{style} {ratio}", reply_markup=keyboard)
 @dp.message_handler(state=DrawingSettings.settings.state)
 async def handle_style_and_ratio(message: types.Message,state:FSMContext):
-    user_data = await dp.storage.get_data(chat=message.chat.id)
+    user_data , chat_id = await get_chat_data(message)
     text = message.text
     if text in Style.__members__:
         user_data['style'] = text
@@ -307,7 +308,7 @@ async def handle_style_and_ratio(message: types.Message,state:FSMContext):
     else:
         await message.reply("Unknown option.")
     await state.finish()
-    await dp.storage.set_data(chat=message.chat.id, data=user_data)
+    await dp.storage.set_data(chat=chat_id, data=user_data)
 def process_draw_commands(response_text, pattern,chat_id,reply_id):
     while True:
         prompts = re.findall(pattern, response_text)
