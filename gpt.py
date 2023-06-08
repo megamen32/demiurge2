@@ -41,16 +41,14 @@ async def agpt(**params):
                     config.set_random_api_key()
                     # Ограничьте историю MAX_HISTORY сообщениями
                     if count_tokens(params['messages']) > MAX_TOKENS:
-                        normal_text = []
-                        ctns = list(reversed((params['messages'])))
-                        while count_tokens(normal_text) < MAX_TOKENS and any(ctns):
-                            elem = ctns.pop()
-                            if count_tokens(normal_text + [elem]) < MAX_TOKENS:
-                                normal_text.append(elem)
-                            else:
+                        params['messages'] = params['messages'][::-1]  # reverse the list
+                        tokens_count = [count_tokens([msg]) for msg in params['messages']]
+                        cumulative_tokens = 0
+                        for idx, token_count in enumerate(tokens_count):
+                            if cumulative_tokens + token_count > MAX_TOKENS:
                                 break
-                        params['messages']=list(reversed(normal_text))
-
+                            cumulative_tokens += token_count
+                        params['messages'] = params['messages'][idx:][::-1]  # keep the recent messages and reverse back
 
                     result = await openai.ChatCompletion.acreate(**params)
                     return result
