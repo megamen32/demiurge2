@@ -19,7 +19,7 @@ class MessageLoggingMiddleware(BaseMiddleware):
 
         text_ = f'{message.from_user.full_name or message.from_user.username}:{message.text}'
         logging.debug(text_)
-        await tgbot.dialog_append(message,text_,message_id=message.message_id)
+        await tgbot.dialog_append(message,text_)
         # Продолжаем обработку следующими middleware и обработчиками
 
 

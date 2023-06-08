@@ -183,6 +183,7 @@ async def handle_voice(message: types.Message):
 
         text = await asyncio.get_running_loop().run_in_executor(None, recognize,(file_id))
         message.text=text
+        await dialog_append(message,message.text)
         asyncio.create_task( msg.edit_text(f'Вы сказали:\n{text}'))
         return await handle_message(message)
     except:
@@ -206,10 +207,11 @@ async def handle_photo(message: types.Message):
 
         text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
         message.text = f'User sends your photo, that ai recognized as "{text}"'
+        user=message.from_user
+        content = f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"'
         if message.caption:
-            user=message.from_user
-            await dialog_append(message,role='system', content= f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"')
-            message.text=f'{message.caption}'
+           content+=f',there are was user message "{message.caption}"'
+        await dialog_append(message, content, config.Role_SYSTEM)
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
         return await handle_message(message,role='system')
     except:
@@ -446,7 +448,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
 
             ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
             response_text_ = f"{ASSISTANT_NAME_SHORT}:{response_text}"
-            user_data,chat_id = await dialog_append(message, response_text_, role=config.Role_ASSISTANT, message_id=msg.message_id)
+            user_data,chat_id = await dialog_append(message, response_text_, role=config.Role_ASSISTANT)
         response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
         response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_id)
         response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')

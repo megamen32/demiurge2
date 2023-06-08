@@ -31,6 +31,15 @@ rate_limiter = AsyncLimiter(3, 60)
 llm=None
 cur_token_index=0
 my_session_tokens = ['eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ik1UaEVOVUpHTkVNMVFURTRNMEZCTWpkQ05UZzVNRFUxUlRVd1FVSkRNRU13UmtGRVFrRXpSZyJ9.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL3Byb2ZpbGUiOnsiZW1haWwiOiJoZGhmYTEyNEByYW1ibGVyLnJ1IiwiZW1haWxfdmVyaWZpZWQiOnRydWV9LCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsidXNlcl9pZCI6InVzZXIta3ZrNzRJWGxzWkZxRVZzR3FhMnFwR0hYIn0sImlzcyI6Imh0dHBzOi8vYXV0aDAub3BlbmFpLmNvbS8iLCJzdWIiOiJhdXRoMHw2M2Y1MmYyOWY4M2JkODE2ZTg4NzQ2OGIiLCJhdWQiOlsiaHR0cHM6Ly9hcGkub3BlbmFpLmNvbS92MSIsImh0dHBzOi8vb3BlbmFpLm9wZW5haS5hdXRoMGFwcC5jb20vdXNlcmluZm8iXSwiaWF0IjoxNjg1MTAyMjc1LCJleHAiOjE2ODYzMTE4NzUsImF6cCI6IlRkSkljYmUxNldvVEh0Tjk1bnl5d2g1RTR5T282SXRHIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBtb2RlbC5yZWFkIG1vZGVsLnJlcXVlc3Qgb3JnYW5pemF0aW9uLnJlYWQgb3JnYW5pemF0aW9uLndyaXRlIn0.J586tB92Sd9W6A9DQGD6BcwoKAaQQlEzR9c8IsUnXwYbezh5mCS2lTtFtiBf1vKt2t1GPg0k-WaS5zkqbrob4A0IngaNpHqZsIh04D-0pGz9pyEjkwwJvNhi7uQ9WdkTGwLsPKdx-oBto23OjcGgnv-OyWG2Vsm5nukgGe3escVikAZtzWO0visHiV_3p-97JIh5OCYF_R4Zfip5vGyWi16YuIDV1UssBCk1nF30-C-_-uyohSyGZZZ0HAE47YgiKXkqhnNrqbUKVcMhGndpaQ2eTDTcOFegZ2ASkpsvqPpceJnwhYaja5XGXga-ZsDITNMw0H4jDWOsnHYzNYPdVw']
+def trim_message_to_tokens(message, max_tokens):
+    global tokenizer
+    if tokenizer is None:
+        from transformers import GPT2Tokenizer
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    tokens = tokenizer.encode(message)
+    if len(tokens) > max_tokens:
+        tokens = tokens[:max_tokens]
+    return tokenizer.decode(tokens)
 
 async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
@@ -41,15 +50,19 @@ async def agpt(**params):
                     config.set_random_api_key()
                     # Ограничьте историю MAX_HISTORY сообщениями
                     if count_tokens(params['messages']) > MAX_TOKENS:
-                        params['messages'] = params['messages'][::-1]  # reverse the list
-                        tokens_count = [count_tokens([msg]) for msg in params['messages']]
-                        cumulative_tokens = 0
-                        for idx, token_count in enumerate(tokens_count):
-                            if cumulative_tokens + token_count > MAX_TOKENS:
+                        trimmed_messages = []
+                        for msg in params['messages'][::-1]:  # reverse the list
+                            msg_token_count = count_tokens([msg])
+                            if msg_token_count > MAX_TOKENS // 2:
+                                # Trim the message
+                                msg['content'] = trim_message_to_tokens(msg['content'], MAX_TOKENS // 2)
+                                msg_token_count = count_tokens([msg])
+                            if not trimmed_messages or (count_tokens(trimmed_messages) + msg_token_count <= MAX_TOKENS):
+                                trimmed_messages.append(msg)
+                            else:
                                 break
-                            cumulative_tokens += token_count
-                        params['messages'] = params['messages'][idx:][::-1]  # keep the recent messages and reverse back
-
+                        params['messages'] = trimmed_messages[::-1]  # reverse back
+                    params['messages']=[{"role": item["role"], "content": item["content"]} for item in params['messages']]
                     result = await openai.ChatCompletion.acreate(**params)
                     return result
                 except RateLimitError as error:
