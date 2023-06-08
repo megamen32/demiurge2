@@ -33,7 +33,7 @@ openai.api_key=CHATGPT_API_KEY
 
 
 
-@dp.message_handler(commands=['promt'])
+@dp.message_handler(commands=['prompt'])
 async def change_role(message: types.Message):
     # Получение настроек для этого чата
     data , chat_id = await get_chat_data(message)
@@ -93,7 +93,7 @@ async def show_history(message: types.Message):
         keyboard = InlineKeyboardMarkup()
 
         if len(text) > 4090:
-            keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;4090;8190"))
+            keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;0;4090"))
 
         await m.edit_text(text=text_to_show, reply_markup=keyboard)
     except:
@@ -135,18 +135,10 @@ async def clear_history(message: types.Message):
 async def summarize_history(message: types.Message):
     msg = await message.reply('...')
     try:
-
-
-        summary = await get_summary( message)
-        if summary is not None:
             user_data, chat_id = await get_chat_data(message)
-            # Замените историю диалога суммарным представлением
-            user_data['history'] = [{"role": config.Role_ASSISTANT, "content": summary}]
-            await dp.storage.set_data(chat=chat_id, data=user_data)
-
+            await do_short_dialog(chat_id, user_data)
+            summary=await get_history(message)
             await msg.edit_text( text=f"История диалога была суммирована:\n{summary}")
-        else:
-            await msg.edit_text( text="История диалога пуста.")
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
@@ -320,7 +312,13 @@ async def handle_edited_message(message: types.Message):
         traceback.print_exc()
         await message.answer('Не удалось получить ответ от Демиурга')
 
-
+@dp.message_handler(commands=['count'])
+async def show_memory_info(message: types.Message):
+    user_data, _ = await get_chat_data(message)
+    history = user_data['history']
+    total_symbols = sum([len(message['content']) for message in history])
+    total_tokens = count_tokens(history)
+    await message.reply(f"В памяти находится {total_symbols} символов и {total_tokens} токенов.")
 
 engine=None
 def text_to_speech(text):
@@ -477,40 +475,46 @@ from aiogram import types
 
 
 
+
 # Создайте глобальную блокировку
 dialog_locks = {}
 async def do_short_dialog(chat_id, user_data):
-    MAX_MEMORY_SIZE = gpt.MAX_TOKENS  # установите максимальный размер памяти
-
-    # Определите, сколько сообщений вы хотите сохранить в оригинальном виде
-    num_recent_messages_to_keep = 2
-
+    MAX_MEMORY_SIZE = 2000  # set the maximum memory size
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock
 
-    # Управление памятью должно быть синхронизировано, чтобы предотвратить одновременную запись.
+    # Memory management must be synchronized to prevent concurrent writing.
     async with lock:
-        total_memory_size = count_tokens(user_data['history'])
-        # Проверьте, превышает ли текущий размер памяти максимальный размер
-        if total_memory_size > MAX_MEMORY_SIZE:
-            # Сохраните последние сообщения
-            recent_messages = user_data['history'][-num_recent_messages_to_keep:]
+        # Copy the history in reverse order
+        reversed_history = user_data['history'][::-1]
+        reduced_history = []
+        total_tokens = 0
 
-            # Удалите сохраненные сообщения из истории
-            remaining_history = user_data['history'][:-num_recent_messages_to_keep]
+        # We add messages to the reduced history until we reach the max memory size
+        for message in reversed_history:
+            message_tokens = count_tokens([message])  # ensure the message is in a list
+            if total_tokens + message_tokens > MAX_MEMORY_SIZE:
+                break
+            reduced_history.append(message)
+            total_tokens += message_tokens
 
-            # Сгенерируйте суммарное представление оставшейся истории
+        # We reverse the reduced history again to maintain the original order
+        reduced_history = reduced_history[::-1]
+
+        # Generate summary for remaining history
+        remaining_history = [msg for msg in user_data['history'] if msg not in reduced_history]
+        if remaining_history:
             summary = await summary_gpt(remaining_history)
+            # Add the summary at the start of our history
+            reduced_history = [{"role": config.Role_ASSISTANT, "content": summary}] + reduced_history
 
-            # Обновите историю, заменив оставшуюся часть на суммарное представление
-            updated_history = [{"role": config.Role_ASSISTANT, "content": summary}] + recent_messages
+        # Update the user's history
+        user_data['history'] = reduced_history
 
-            # Сохраните обновленную историю в данных пользователя
-            user_data['history'] = updated_history
+        # Save the updated history to the user's data
+        await dp.storage.set_data(chat=chat_id, data=user_data)
 
-            # Обновите данные пользователя в хранилище
-            await dp.storage.set_data(chat=chat_id, data=user_data)
 
 
 
