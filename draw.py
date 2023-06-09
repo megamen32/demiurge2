@@ -162,7 +162,7 @@ def create_style_keyboard(prompt):
 @dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
 async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
-    user_data, user_id = await get_chat_data(query.message)
+    user_data, chat_id = await get_chat_data(query.message)
     _, id, text = query.data.split('_', 2)
     prompt = Prompt.get_by_id(id).text
     if text in Style.__members__ or text in [MIDJOURNEY, UNSTABILITY]:
@@ -173,8 +173,8 @@ async def handle_ratio_callback(query: types.CallbackQuery):
         await query.answer(f"Set ratio to {text}.")
     else:
         await query.answer("Unknown option.")
-    await dp.storage.set_data(chat=query.message.chat.id, data=user_data)
-    await draw_and_answer(prompt, query.message.chat.id, query.message.message_id)
+    await dp.storage.set_data(chat=chat_id, data=user_data)
+    await draw_and_answer(prompt, query.message.chat.id, query.message.message_thread_id)
 
 
 def translate_promt(prompt):
@@ -255,8 +255,6 @@ async def handle_draw(message: types.Message):
         return
 
     user_data, chat_id = await get_chat_data(message)
-    draw_prompt_ = f'{message.from_user.full_name or message.from_user.username}: /draw {prompt}'
-    await dialog_append(message, draw_prompt_)
     reply_to_id = message.message_id
     await draw_and_answer(prompt, chat_id, reply_to_id)
 

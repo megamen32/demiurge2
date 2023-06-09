@@ -479,7 +479,7 @@ from aiogram import types
 # Создайте глобальную блокировку
 dialog_locks = {}
 async def do_short_dialog(chat_id, user_data):
-    MAX_MEMORY_SIZE = 2000  # set the maximum memory size
+    MAX_MEMORY_SIZE = 1200  # set the maximum memory size
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock
