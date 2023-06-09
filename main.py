@@ -1,4 +1,5 @@
 import functools
+import logging
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
@@ -593,9 +594,9 @@ async def check_inactive_users():
 
                 # отправляем сообщение
                 try:
-
+                    logging.info(f'sended {response_text} to {storage_id}')
                     msg = await dp.bot.send_message(chat_id=chat_id, text=response_text, reply_to_message_id=thread_id)
-                    await tgbot.dialog_append(msg,response_text,'assistant')
+                    await tgbot.dialog_append(msg,response_text,config.Role_ASSISTANT)
                 except (BotKicked,BotBlocked):
                     # Бот был исключён из чата, удаляем данные о чате
                     await dp.storage.reset_data(chat=storage_id)

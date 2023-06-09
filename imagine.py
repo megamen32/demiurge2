@@ -24,7 +24,7 @@ async def generate_image_midjourney(prompt):
     payload = {
         "prompt": prompt
     }
-    url = "http://localhost:5000/api/send_and_receive"
+    url = "http://localhost:5001/api/send_and_receive"
     headers = {
         "Content-Type": "application/json"
     }
