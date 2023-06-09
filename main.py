@@ -447,10 +447,25 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
             ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
             response_text_ = f"{ASSISTANT_NAME_SHORT}:{response_text}"
             user_data,chat_id = await dialog_append(message, response_text_, role=config.Role_ASSISTANT)
-        response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
-        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_id)
+        #response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
+        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_thread_id)
         response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')
         response_text = process_search_commands(response_text, message, r'\/web (.+)\/?', coroutine=handle_web)
+
+        response_text = process_draw_commands(response_text, r'draw\([\'"](.+?)[\'"]\)', message.chat.id,
+                                              message.message_thread_id)
+        response_text = process_search_commands(response_text,message, r'search\([\'"](.+?)[\'"]\)')
+        response_text = process_search_commands(response_text,message, r'web\([\'"](.+?)[\'"]\)', coroutine=handle_web)
+
+        # обработка кода Python
+        python_code_pattern = r'```(.+?)```'
+        python_code_matches = re.findall(python_code_pattern, response_text, re.DOTALL)
+        for match in python_code_matches:
+            try:
+                exec_result = exec(match)
+                response_text = response_text.replace(f'```{match}```', str(match)+'-->'+str(exec_result))
+            except Exception as e:
+                response_text = response_text.replace(f'```{match}```', str(match)+'-->'+str(e))
 
         asyncio.create_task(do_short_dialog(chat_id, user_data))
         # Отправьте ответ пользователю
@@ -551,7 +566,7 @@ async def check_inactive_users():
             user_data = await dp.storage.get_data(chat=storage_id)
             thread_id = None
             if '&' in storage_id:
-                chat_id, thread_id = storage_id.split('&')
+                chat_id, thread_id = storage_id.split('&',maxsplit=1)
             else:
                 chat_id=storage_id
 
@@ -576,10 +591,9 @@ async def check_inactive_users():
 
                 # отправляем сообщение
                 try:
-                    msg = await dp.bot.send_message(chat_id=chat_id, text=response_text,reply_to_message_id=thread_id)
-
-
-                    await tgbot.dialog_append_raw(storage_id,response_text,None,'assistant',message_id=msg.message_id)
+                    user_data['last_message_time'] = datetime.now().timestamp()
+                    msg = await dp.bot.send_message(chat_id=chat_id, text=response_text, reply_to_message_id=thread_id)
+                    await tgbot.dialog_append(msg,response_text,'assistant')
                 except (BotKicked,BotBlocked):
                     # Бот был исключён из чата, удаляем данные о чате
                     await dp.storage.reset_data(chat=storage_id)

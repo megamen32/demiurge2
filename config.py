@@ -49,9 +49,10 @@ def get_first_word(string):
 
 
 instructions = 'As an AI, you have access to multiple functionalities that you can execute:\n' \
-               '1) To generate an image from a text description, you should use the command: "/draw [image description]". The system will then generate and send an image based on the description you provided.\n' \
-               '2) To extract text from any webpage, you should use the command: "/web [url]".\n' \
-               '3) To search for information on the web, you should use the command: "/search [query]". The system will provide search results based on the query you provided.\n' \
+               '1) To generate an image from a text description, you should use the command: "draw("image description")". The system will then generate and send an image based on the description you provided.\n' \
+               '2) To extract text from any webpage, you should use the command: "web("url")".\n' \
+               '3) To search for information on the web, you should use the command: "search("query")". The system will provide search results based on the query you provided.\n' \
+               '4) To execute any python code, you should use the format: """python code""".\n' \
                'Remember, you can use several commands in one message.'
 
 ASSISTANT_NAME = "Демиург-альфа и омега, начало и конец. Который разговаривает с избранными"
