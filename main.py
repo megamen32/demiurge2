@@ -452,10 +452,10 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
         response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')
         response_text = process_search_commands(response_text, message, r'\/web (.+)\/?', coroutine=handle_web)
 
-        response_text = process_draw_commands(response_text, r'draw\([\'"](.+?)[\'"]\)', message.chat.id,
+        response_text = process_draw_commands(response_text, r'\(?\s*draw\(\s*[\'"](.+?)[\'"]\s*\)\s*\)?', message.chat.id,
                                               message.message_thread_id)
-        response_text = process_search_commands(response_text,message, r'search\([\'"](.+?)[\'"]\)')
-        response_text = process_search_commands(response_text,message, r'web\([\'"](.+?)[\'"]\)', coroutine=handle_web)
+        response_text = process_search_commands(response_text,message, r'\(?\s*search\([\'"](.+?)[\'"]\)\s*\)?')
+        response_text = process_search_commands(response_text,message, r'\(?\s*web\([\'"](.+?)[\'"]\)\s*\)?', coroutine=handle_web)
 
         # обработка кода Python
         python_code_pattern = r'```(.+?)```'
@@ -577,8 +577,10 @@ async def check_inactive_users():
                 # генерируем сообщение
                 ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
 
-                await tgbot.dialog_append_raw(storage_id, 'Пользователь не взаимодействовал в течение 24 часов. Вы должны напомнить о себе.', None, 'system')
+                await tgbot.dialog_append_raw(storage_id, 'Your next task is to motivate the user to continue the conversation. The user has not interacted with you for more than 24 hours.', None, 'system')
                 user_data = await dp.storage.get_data(chat=storage_id)
+                user_data['last_message_time'] = datetime.now().timestamp()
+                await dp.storage.set_data(chat=storage_id, data=user_data)
                 history_for_openai = [{'role': 'system',
                                        'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
                                       ] + [{"role": item["role"], "content": item["content"]} for item in
@@ -591,7 +593,7 @@ async def check_inactive_users():
 
                 # отправляем сообщение
                 try:
-                    user_data['last_message_time'] = datetime.now().timestamp()
+
                     msg = await dp.bot.send_message(chat_id=chat_id, text=response_text, reply_to_message_id=thread_id)
                     await tgbot.dialog_append(msg,response_text,'assistant')
                 except (BotKicked,BotBlocked):
