@@ -254,9 +254,7 @@ async def handle_draw(message: types.Message):
         await message.reply("Please provide a description for the image.")
         return
 
-    user_data, chat_id = await get_chat_data(message)
-    reply_to_id = message.message_thread_id
-    await draw_and_answer(prompt, chat_id, reply_to_id)
+    await draw_and_answer(prompt, message.chat.id, message.message_thread_id)
 
 
 def create_settings_keyboard():
