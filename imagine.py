@@ -41,7 +41,7 @@ async def generate_image_midjourney(prompt):
     return response_bytes,url
 
 async def upscale_image(file_name, number):
-    url = f"http://localhost:5000/upscale"
+    url = f"http://localhost:5001/upscale"
     params = {
         "file_name": file_name,
         "number": number

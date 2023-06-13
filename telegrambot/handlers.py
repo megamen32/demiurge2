@@ -12,7 +12,7 @@ class MessageLoggingMiddleware(BaseMiddleware):
     async def on_pre_process_message(self, message: types.Message, data: dict):
         user_data,user_id=await tgbot.get_chat_data(message)
         user_data['last_message_time'] = datetime.now().timestamp()
-        await dp.storage.set_data(chat=user_data,data=user_data)
+        await dp.storage.set_data(chat=user_id,data=user_data)
         if message.reply_to_message and message.reply_to_message.text:
             user = message.reply_to_message.from_user
             from_ = user.full_name or user.username if not user.id == bot.id else user_data.get('ASSISTANT_NAME_SHORT',

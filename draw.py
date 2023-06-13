@@ -255,7 +255,7 @@ async def handle_draw(message: types.Message):
         return
 
     user_data, chat_id = await get_chat_data(message)
-    reply_to_id = message.message_id
+    reply_to_id = message.message_thread_id
     await draw_and_answer(prompt, chat_id, reply_to_id)
 
 
@@ -320,6 +320,6 @@ def process_draw_commands(response_text, pattern, chat_id, reply_id):
         if not prompts:
             break
         for prompt in prompts:
-            asyncio.create_task(draw_and_answer(prompt, chat_id, reply_id))
+            asyncio.create_task()
         response_text = re.sub(pattern, '', response_text)
     return response_text
