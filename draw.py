@@ -318,6 +318,6 @@ def process_draw_commands(response_text, pattern, chat_id, reply_id):
         if not prompts:
             break
         for prompt in prompts:
-            asyncio.create_task()
+            asyncio.create_task(draw_and_answer(prompt, chat_id, reply_id))
         response_text = re.sub(pattern, '', response_text)
     return response_text
