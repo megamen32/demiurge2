@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import io
 import json
 import logging
 import subprocess
@@ -22,7 +23,7 @@ import gpt
 import tgbot
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
 from datebase import Prompt, ImageUnstability
-from draw import handle_draw, draw_and_answer
+from draw import  draw_and_answer, upscale_image_imagine
 
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
@@ -147,18 +148,6 @@ async def summarize_history(message: types.Message):
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
 
-async def get_summary(message):
-    user_data, chat_id = await get_chat_data(message)
-    ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
-
-    if user_data.get('history', None) is not None:
-        history = [{'role': 'system',
-                    'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                   ] + user_data['history']
-        # Сформируйте запрос на суммирование к GPT-3.5
-        summary = await summary_gpt(history)
-    return summary
-
 
 @dp.message_handler(content_types=types.ContentType.VOICE)
 async def handle_voice(message: types.Message):
@@ -200,15 +189,23 @@ async def handle_photo(message: types.Message):
         file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
         ext = file_path.rsplit('.', 1)[-1]
         # Скачайте аудиофайл
-        await bot.download_file(file_path, destination=f"{file_id}.{ext}")
+        destination = f"{file_id}.{ext}"
+        await bot.download_file(file_path, destination=destination)
 
-        text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
-        message.text = f'User sends your photo, that ai recognized as "{text}"'
+        if message.caption and message.caption.lower().replace('/','').startswith('u'):
+            data=open(destination,'rb').read()
+            img=await upscale_image_imagine(data)
+            await message.answer_photo(io.BytesIO(img),caption='upscaled')
+            os.remove(destination)
+            await msg.delete()
+            return
+
+        text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, destination)
         user = message.from_user
-        content = f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"'
+        content = f'User sent an image, which was recognized with the following caption: "{text}"'
         if message.caption:
-            content += f',there are was user message "{message.caption}"'
-        await dialog_append(message, content, config.Role_SYSTEM)
+            content += f'. User provided the following message with the image: "{message.caption}"'
+        await dialog_append(message, content, config.Role_USER)
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
         return await handle_message(message, role='system')
     except:
@@ -496,8 +493,9 @@ async def process_function_call(function_name, function_args, message, step=0):
         # Сохранение обновленных данных пользователя
         await dp.storage.set_data(chat=storage_id, data=user_data)
 
-        asyncio.create_task(draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
-        response_text = None
+        response_text_=asyncio.create_task( draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
+        response_text=None
+        process_next = False
 
     elif function_name == 'web':
         url_ = function_args.get('url', '')
@@ -521,8 +519,9 @@ async def process_function_call(function_name, function_args, message, step=0):
         response_text = {'code':code,'result':res}
     else:
         raise Exception(f"There is no {function_name} funciton")
-
-    return json.dumps(response_text,ensure_ascii=False), process_next
+    if response_text is not None and not isinstance(response_text,str):
+        response_text = json.dumps(response_text, ensure_ascii=False)
+    return response_text, process_next
 
 async def wait_and_process_messages(chat_id, message, user_data, role):
     global dialog_locks
@@ -598,32 +597,41 @@ async def send_response_text(msg, response_text):
 async def do_short_dialog(chat_id, user_data,force=False):
     global dialog_locks
     MAX_MEMORY_SIZE = gpt.MAX_TOKENS*0.8
+    normal_MEMORY_SIZE = gpt.MAX_TOKENS*0.1
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock
 
     # Memory management must be synchronized to prevent concurrent writing.
     async with lock:
-        # Copy the history in reverse order
-        reversed_history = user_data['history'][::-1]
-        reduced_history = []
-        total_tokens = 0
-
-        # We add messages to the reduced history until we reach the max memory size
-        for message in reversed_history:
-            message_tokens = count_tokens([message])  # ensure the message is in a list
-            if total_tokens + message_tokens > MAX_MEMORY_SIZE:
-                break
-            reduced_history.append(message)
-            total_tokens += message_tokens
-
-        # We reverse the reduced history again to maintain the original order
-        reduced_history = reduced_history[::-1]
-
-        # Generate summary for remaining history
-        remaining_history = [msg for msg in user_data['history'] if msg not in reduced_history]
         summary=None
-        if remaining_history or force:
+        remaining_history=None
+        if force:
+            remaining_history=user_data['history']
+            reduced_history = []
+        elif count_tokens(user_data['history']) > MAX_MEMORY_SIZE:
+
+            reversed_history = user_data['history'][::-1]
+
+            reduced_history = []
+            total_tokens = 0
+
+            # We add messages to the reduced history until we reach the max memory size
+            for message in reversed_history:
+                message_tokens = count_tokens([message])  # ensure the message is in a list
+                if total_tokens + message_tokens > normal_MEMORY_SIZE:
+                    break
+                reduced_history.append(message)
+                total_tokens += message_tokens
+
+            # We reverse the reduced history again to maintain the original order
+            reduced_history = reduced_history[::-1]
+
+            # Generate summary for remaining history
+            remaining_history = [msg for msg in user_data['history'] if msg not in reduced_history]
+        else:
+            reduced_history=user_data['history']
+        if remaining_history:
             summary = await summary_gpt(remaining_history)
             # Add the summary at the start of our history
             reduced_history = [{"role": config.Role_ASSISTANT, "content": summary}] + reduced_history

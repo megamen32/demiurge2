@@ -135,7 +135,7 @@ async def summary_gpt(history_for_openai):
         messages=history_for_openai + [
             {
                 'role': 'system',
-                'content': "Ты помощник, которому нужно суммировать всю предыдущую информацию. Твой следующий ответ заменит всю предыдущую историю чата, поэтому он должен содержать всю важную информацию. Следуй изображению персонажа, которым ты притворяешься. Не пиши лишний текст: не продолжай диалог или не отвечай на вопросы. Пользователь не увидит твой ответ. Тебе нужно только суммировать."
+                'content': "Your task is to summarize the previous information. Do not extend the dialogue or answer any questions. Only summarize."
             }
         ]
     )

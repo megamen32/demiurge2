@@ -66,7 +66,7 @@ async def gen_img(prompt, ratio, style):
             return imd_data[0], None
 
 
-async def upscale_image(img_data):
+async def upscale_image_imagine(img_data):
     global imagine
     if imagine is None:
         imagine = AsyncImagine()
@@ -219,24 +219,27 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             return
 
         photo = None
-        kb = create_style_keyboard(prompt)
+        kb :types.InlineKeyboardMarkup= create_style_keyboard(prompt)
         if isinstance(style, Style):
             photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}',
                                          reply_to_message_id=reply_to_id)
-            img_file = await upscale_image(img_file)
+            img_file = await upscale_image_imagine(img_file)
         elif style == MIDJOURNEY:
             img_db = ImageMidjourney.create(prompt=prompt, url=url)
 
             btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in
                     range(4)]
             kb.row(*btns)
-
         photo2 = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file),
                                       caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb,
                                       reply_to_message_id=reply_to_id)
         if photo is not None:
             await photo.delete()
-        return  f'Finished /draw command. Generated image based on "{prompt}" with {style} style and sent to chat.'
+        if not url:
+            file_info = await bot.get_file(photo2.photo[-1].file_id)
+            url = f"https://api.telegram.org/file/bot{config.TELEGRAM_BOT_TOKEN}/{file_info.file_path}"
+
+        return {'prompt': prompt, 'style': style.name if isinstance(style,Style) else style, 'image generated without exception':True}
     except:
         error = True
         traceback.print_exc()
@@ -244,6 +247,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             await bot.send_message(chat_id, "An error occurred while generating the image.")
         else:
             await msg.edit_text("An error occurred while generating the image.")
+        return {'prompt': prompt, 'style': style, 'image generated without exception':traceback.format_exc(0,False)}
     finally:
         if not error:
             await msg.delete()

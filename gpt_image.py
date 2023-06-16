@@ -1,3 +1,4 @@
+from torch.cuda import OutOfMemoryError
 
 model=None
 
@@ -11,12 +12,17 @@ def lazy_load_model():
     from transformers import AutoTokenizer, ViTFeatureExtractor, VisionEncoderDecoderModel
 
     device = 'cuda'
+
     encoder_checkpoint = "nlpconnect/vit-gpt2-image-captioning"
     decoder_checkpoint = "nlpconnect/vit-gpt2-image-captioning"
     model_checkpoint = "nlpconnect/vit-gpt2-image-captioning"
+
     feature_extractor = ViTFeatureExtractor.from_pretrained(encoder_checkpoint)
     tokenizer = AutoTokenizer.from_pretrained(decoder_checkpoint)
-    model = VisionEncoderDecoderModel.from_pretrained(model_checkpoint).to(device)
+    try:
+        model = VisionEncoderDecoderModel.from_pretrained(model_checkpoint).to(device)
+    except OutOfMemoryError:
+        model = VisionEncoderDecoderModel.from_pretrained(model_checkpoint).to('cpu')
 def predict(image, max_length=64, num_beams=4):
     global model
     global device

@@ -51,16 +51,11 @@ def get_first_word(string):
         return None
 
 
-instructions = 'As an AI, you have access to multiple functionalities that you can execute:\n' \
-               '1) To generate an image from a text description, you should use the command: "draw("image description")". The system will then generate and send an image based on the description you provided.\n' \
-               '2) To extract text from any webpage, you should use the command: "web("url")".\n' \
-               '3) To search for information on the web, you should use the command: "search("query")". The system will provide search results based on the query you provided.\n' \
-               '4) To execute any python code, you should use the format: """python code""".\n' \
-               'Remember, you can use several commands in one message.'
+
 def get_styles():
     # Ваш код, который возвращает список из 70 стилей
     from Imaginepy.imaginepy import Style
-    styles = ['IMAGINE_V4_Beta','V4_CREATIVE','ANIME_V2','NEO_FAUVISM','NEON','SURREALISM','LOGO','CYBERPUNK','LANDSCAPE','ARCHITECTURE','RENDER','VIBRANT','MYSTICAL','CINEMATIC_RENDER','ILLUSTRATION','KAWAII_CHIBI','PRODUCT_PHOTOGRAPHY','REALISTIC','CHROMATIC','PAINTING']
+    styles = ['IMAGINE_V4_Beta','V4_CREATIVE','ANIME_V2','NEO_FAUVISM','NEON','SURREALISM','LOGO','CYBERPUNK','LANDSCAPE','ARCHITECTURE','RENDER','VIBRANT','MYSTICAL','CINEMATIC_RENDER','ILLUSTRATION','KAWAII_CHIBI','PRODUCT_PHOTOGRAPHY','CHROMATIC','PAINTING']
     # Добавление стиля 'MIDJOURNEY', если он не включен в список
     if 'MIDJOURNEY' not in styles:
         styles.append('MIDJOURNEY')
