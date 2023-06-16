@@ -464,113 +464,114 @@ def execute_python_code(code:str):
     return exec_function()
 
 
-async def wait_and_process_messages(chat_id, message, user_data, role):
-    msg = await message.reply('...')
+
+
+
+
+
+# Создайте глобальную блокировку
+dialog_locks = {}
+async def process_function_call(function_name, function_args, message):
+    process_next = False
+    response_text = function_args
+
     try:
-        lock = dialog_locks.get(chat_id, asyncio.Lock())
-        dialog_locks[chat_id] = lock
+        if function_name == 'draw':
+            image_description_ = function_args.get('image_description', response_text)
+            message.text = f"/{function_name} {image_description_}"
+            asyncio.create_task(draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
+            response_text = None
+
+        elif function_name == 'web':
+            url_ = function_args.get('url', response_text)
+            message.text = f"/{function_name} {url_}"
+            response_text = await function_web(url_)
+            process_next = True
+
+        elif function_name == 'search':
+            query_ = function_args.get('query', response_text)
+            message.text = f"/{function_name} {query_}"
+            response_text = await function_search(query_)
+            response_text = json.dumps(response_text)
+            process_next = True
+
+        elif function_name == 'execute_python_code':
+            code = function_args.get('code', response_text)
+            try:
+                res = str(execute_python_code(code))
+            except Exception as e:
+                res = str(e)
+            response_text = function_args.get('code', response_text) + '\n>>> ' + res
+
+    except JSONDecodeError:
+        logging.error(f"gpt return no arguments for function {function_name} and arguments is {function_args}")
+
+    return response_text, process_next
+
+async def wait_and_process_messages(chat_id, message, user_data, role):
+    global dialog_locks
+    response_text=None
+    msg = await message.reply('...')
+    lock = dialog_locks.get(chat_id, asyncio.Lock())
+    dialog_locks[chat_id] = lock
+    try:
         async with lock:
-            while True:
+            step=0
+            while step<3:
+                step+=1
                 user_data, chat_id = await get_chat_data(message)
-                # Сформируйте ответ от GPT-3.5
-
-                ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
-                use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
-
                 chat_response = await gpt_acreate(
-                    model="gpt-3.5-turbo-0613" if not use_gpt_4 else 'gpt-4',
+                    model="gpt-3.5-turbo-0613" if not user_data.get('gpt-4', config.useGPT4) else 'gpt-4',
                     messages=[
-                                 {'role': 'system',
-                                  'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                                 # {'role': config.Role_SYSTEM, 'content': f'{config.instructions}'}
+                                 {'role': 'system', 'content': f"You are pretending to answer like a character from the following description: {user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}"},
                              ] + user_data['history'],
                     functions=config.functions,
                     function_call="auto",
                 )
-                # Добавьте ответ бота в историю
-                # Проверка наличия функционального вызова в ответе
+
                 if 'function_call' in chat_response['choices'][0]['message']:
                     function_call = chat_response['choices'][0]['message']['function_call']
-                    function_name = function_call['name']
-                    response_text=function_call['arguments']
-                    function_args={}
-                    try:
-                        function_args = json.loads(function_call['arguments'])
-                    except JSONDecodeError:
-                        response_text = function_call['arguments']
-                        logging.error(f"gpt return no arguments for function {function_name} and arguments is {function_call['arguments']}")
-                        # Обработка функционального вызова
-                    process_next = False
-                    if function_name == 'draw':
-                        image_description_ = function_args.get('image_description',response_text)
-                        message.text = f"/{function_name} {image_description_}"
-                        asyncio.create_task(draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
-                        response_text = None
-                    elif function_name == 'web':
-                        url_ = function_args.get('url',response_text)
-                        message.text = f"/{function_name} {url_}"
-                        response_text = await function_web(url_)
-                        process_next = True
-                    elif function_name == 'search':
-                        query_ = function_args.get('query',response_text)
-                        message.text = f"/{function_name} {query_}"
-                        response_text = await function_search(query_)
-                        response_text = json.dumps(response_text)
-                        process_next = True
-                    elif function_name == 'execute_python_code':
-                        code= function_args.get('code',response_text)
-                        try:
-                            res = str(execute_python_code(code))
-                        except Exception as e:
-                            res = str(e)
-                        response_text = function_args.get('code', response_text) + '\n>>> '+ res
+
+                    response_text, process_next = await process_function_call(function_call['name'], function_call['arguments'], message)
                     user_data, chat_id = await dialog_append(message, text=response_text, role='function',
-                                                             name=function_name)
+                                                             name=function_call['name'])
                     if process_next:
                         message.text = response_text
-                        role= config.Role_ASSISTANT
+                        role = config.Role_ASSISTANT
                         await message.reply(response_text[:4096])
                         continue
 
 
                 else:
-                    # Обработка текстового ответа, как раньше
-                    response_text = chat_response['choices'][0]['message']['content']
-
-                    while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
-                        response_text = response_text.split(":", 1)[1].strip()
-
+                    response_text = chat_response['choices'][0]['message']['content'].split(":", 1)[1].strip() if ":" in chat_response['choices'][0]['message']['content'] else chat_response['choices'][0]['message']['content']
                     user_data, chat_id = await dialog_append(message, response_text, role=config.Role_ASSISTANT)
 
                 break
-        asyncio.create_task(do_short_dialog(chat_id, user_data))
-        # Отправьте ответ пользователю
-        if response_text:
-            try:
-                await msg.edit_text(response_text[:4096])
-                if config.TTS:
-                    asyncio.create_task(send_tts(message, msg, response_text))
-            except:
-                traceback.print_exc()
-            # await dp.storage.set_data(chat=chat_id, data=user_data)
-        else:
-            await msg.delete()
 
-    except CancelledError:
-        await msg.delete()
+        asyncio.create_task(do_short_dialog(chat_id, user_data))
+        if response_text:
+            asyncio.create_task( send_response_text(msg, response_text))
+    except CancelledError:await msg.delete()
     except:
         traceback.print_exc()
-        await msg.edit_text(f'Error in getting answer {traceback.format_exc()}')
+        await msg.edit_text(traceback.format_exc())
 
 
-from aiogram import types
-
-# Создайте глобальную блокировку
-dialog_locks = {}
+async def send_response_text(msg, response_text):
+    if response_text:
+        try:
+            await msg.edit_text(response_text[:4096])
+            if config.TTS:
+                asyncio.create_task(send_tts(msg, response_text))
+        except:
+            traceback.print_exc()
+    else:
+        await msg.delete()
 
 
 async def do_short_dialog(chat_id, user_data):
-    MAX_MEMORY_SIZE = gpt.MAX_TOKENS / 2  # set the maximum memory size
+    global dialog_locks
+    MAX_MEMORY_SIZE = gpt.MAX_TOKENS*0.8
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock
@@ -595,6 +596,7 @@ async def do_short_dialog(chat_id, user_data):
 
         # Generate summary for remaining history
         remaining_history = [msg for msg in user_data['history'] if msg not in reduced_history]
+        summary=None
         if remaining_history:
             summary = await summary_gpt(remaining_history)
             # Add the summary at the start of our history
