@@ -136,7 +136,7 @@ async def handle_web(message: types.Message):
         if promt is None or not any(promt):
             promt=message.text
         msg = await message.reply(f'opening link... {promt}')
-        text = await function_web(promt)
+        text,_ = await function_web(promt)
         message.text=text
         await msg.edit_text(message.text[:4096])
 
@@ -153,21 +153,27 @@ async def handle_web(message: types.Message):
 
 async def function_web(promt):
     url = promt
+    err=False
+    text=None
     try:
         text = await asyncio.get_event_loop().run_in_executor(None, open_url, (url))
     except Exception as e:
-        text=traceback.format_exc(limit=2,chain=False)
-    return text
+        text=str(e)
+        err=True
+    return text,err
 
 
 def open_url(url):
-    from newspaper import Article
-    article = Article(url)
-    article.download()
-    article.parse()
-    if article.text:
-        text = f'{article.text}'
-    else:
+    smart=False
+    if smart:
+        from newspaper import Article
+        article = Article(url)
+        article.download()
+        article.parse()
+        if article.text:
+            text = f'{article.text}'
+        smart=any(article.text)
+    if not smart:
         r = requests.get(url)
         soup = BeautifulSoup(r.content, 'html.parser')
         # извлекаем все элементы <p>

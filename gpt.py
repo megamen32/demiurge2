@@ -105,7 +105,7 @@ def count_tokens(history):
 
     tokens=0
     for msg in history:
-        tokens+=len(tokenizer.encode(msg['content']))
+        tokens+=len(tokenizer.encode(str(msg['content'])))
     return tokens
 
 

@@ -139,9 +139,9 @@ async def summarize_history(message: types.Message):
     msg = await message.reply('...')
     try:
         user_data, chat_id = await get_chat_data(message)
-        await do_short_dialog(chat_id, user_data)
+        await do_short_dialog(chat_id, user_data,force=True)
         summary = await get_history(message)
-        await msg.edit_text(text=f"История диалога была суммирована:\n{summary[:3800]}")
+        await msg.edit_text(text=f"История диалога была суммирована:\n{summary[:4096]}")
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
@@ -248,6 +248,7 @@ speech_model = None
 def recognize(file_id, ext='.ogg'):
     # Преобразование аудиофайла в формат WAV для распознавания речи
     # Используйте SpeechRecognition для преобразования аудио в текст
+
     if False:
         global speech_model
         if speech_model is None:
@@ -410,7 +411,7 @@ async def handle_chat_update(message: types.Message):
         user_data['history'].append({"role": "system",
                                      "content": f'{user.full_name or user.username} has created new chat event: {message.content_type}', })
 
-    chat_response = await gpt_acreate(model='gpt-3.5-turbo-0613', messages=history_for_openai)
+    chat_response = await gpt_acreate(model='gpt-3.5-turbo-0613', messages=user_data['history'])
     response_text = chat_response['choices'][0]['message']['content']
 
     while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
@@ -471,47 +472,69 @@ def execute_python_code(code:str):
 
 # Создайте глобальную блокировку
 dialog_locks = {}
-async def process_function_call(function_name, function_args, message):
+async def process_function_call(function_name, function_args, message, step=0):
     process_next = False
-    response_text = function_args
-
     try:
-        if function_name == 'draw':
-            image_description_ = function_args.get('image_description', response_text)
-            message.text = f"/{function_name} {image_description_}"
-            asyncio.create_task(draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
-            response_text = None
-
-        elif function_name == 'web':
-            url_ = function_args.get('url', response_text)
-            message.text = f"/{function_name} {url_}"
-            response_text = await function_web(url_)
-            process_next = True
-
-        elif function_name == 'search':
-            query_ = function_args.get('query', response_text)
-            message.text = f"/{function_name} {query_}"
-            response_text = await function_search(query_)
-            response_text = json.dumps(response_text)
-            process_next = True
-
-        elif function_name == 'execute_python_code':
-            code = function_args.get('code', response_text)
-            try:
-                res = str(execute_python_code(code))
-            except Exception as e:
-                res = str(e)
-            response_text = function_args.get('code', response_text) + '\n>>> ' + res
-
+        function_args = json.loads(function_args)
     except JSONDecodeError:
-        logging.error(f"gpt return no arguments for function {function_name} and arguments is {function_args}")
+        function_args = {}
 
-    return response_text, process_next
+    if function_name == 'draw':
+        image_description_ = function_args.get('image_description', '')
+        ratio_ = function_args.get('ratio', None)
+        style_ = function_args.get('style', None)
+        message.text = f"/{function_name} {image_description_}"
+
+        user_data, storage_id = await get_chat_data(message)
+
+        # Сохранение ratio, style, и image_description в данных пользователя
+        if ratio_ is not None:
+            user_data['ratio'] = ratio_
+        if style_ is not None:
+            user_data['style'] = style_
+
+        # Сохранение обновленных данных пользователя
+        await dp.storage.set_data(chat=storage_id, data=user_data)
+
+        asyncio.create_task(draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
+        response_text = None
+
+    elif function_name == 'web':
+        url_ = function_args.get('url', '')
+        message.text = f"/{function_name} {url_}"
+        response_text, err = await function_web(url_)
+        response_text = {"error": response_text} if err else {"content": response_text}
+        if step==0:
+            process_next = True
+        else:
+            process_next = not err
+
+    elif function_name == 'search':
+        query_ = function_args.get('query', '')
+        message.text = f"/{function_name} {query_}"
+        response_text = await function_search(query_)
+        process_next = True
+
+    elif function_name == 'execute_python_code' or function_name== 'python':
+        code = function_args.get('code', '')
+        res = execute_python_code(code)
+        response_text = {'code':code,'result':res}
+    else:
+        raise Exception(f"There is no {function_name} funciton")
+
+    return json.dumps(response_text,ensure_ascii=False), process_next
 
 async def wait_and_process_messages(chat_id, message, user_data, role):
     global dialog_locks
     response_text=None
-    msg = await message.reply('...')
+    while True:
+        try:
+            msg = await message.reply('...')
+            break
+        except RetryAfter as e:
+            await asyncio.sleep(e.timeout)
+            continue
+
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock
     try:
@@ -531,15 +554,18 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
 
                 if 'function_call' in chat_response['choices'][0]['message']:
                     function_call = chat_response['choices'][0]['message']['function_call']
+                    response_text, process_next = await process_function_call(function_call['name'],
+                                                                              function_call['arguments'], message)
 
-                    response_text, process_next = await process_function_call(function_call['name'], function_call['arguments'], message)
-                    user_data, chat_id = await dialog_append(message, text=response_text, role='function',
-                                                             name=function_call['name'])
                     if process_next:
                         message.text = response_text
                         role = config.Role_ASSISTANT
-                        await message.reply(response_text[:4096])
+                        user_data, chat_id = await dialog_append(message, text=response_text, role='function',
+                                                                 name=function_call['name'])
+                        await msg.edit_text(response_text[:4096])
+                        msg = await message.reply('...')
                         continue
+
 
 
                 else:
@@ -569,7 +595,7 @@ async def send_response_text(msg, response_text):
         await msg.delete()
 
 
-async def do_short_dialog(chat_id, user_data):
+async def do_short_dialog(chat_id, user_data,force=False):
     global dialog_locks
     MAX_MEMORY_SIZE = gpt.MAX_TOKENS*0.8
 
@@ -579,7 +605,7 @@ async def do_short_dialog(chat_id, user_data):
     # Memory management must be synchronized to prevent concurrent writing.
     async with lock:
         # Copy the history in reverse order
-        reversed_history = user_data['history']
+        reversed_history = user_data['history'][::-1]
         reduced_history = []
         total_tokens = 0
 
@@ -592,12 +618,12 @@ async def do_short_dialog(chat_id, user_data):
             total_tokens += message_tokens
 
         # We reverse the reduced history again to maintain the original order
-        reduced_history = reduced_history
+        reduced_history = reduced_history[::-1]
 
         # Generate summary for remaining history
         remaining_history = [msg for msg in user_data['history'] if msg not in reduced_history]
         summary=None
-        if remaining_history:
+        if remaining_history or force:
             summary = await summary_gpt(remaining_history)
             # Add the summary at the start of our history
             reduced_history = [{"role": config.Role_ASSISTANT, "content": summary}] + reduced_history
@@ -607,6 +633,12 @@ async def do_short_dialog(chat_id, user_data):
 
         # Save the updated history to the user's data
         await dp.storage.set_data(chat=chat_id, data=user_data)
+        if summary:
+            chat_id,thread_id=storage_to_chat_id(chat_id)
+            try:
+                await bot.send_message(chat_id=chat_id,text=f"Summary :{summary}"[:4096],reply_to_message_id=thread_id)
+            except:
+                traceback.print_exc()
         return summary
 
 
@@ -623,7 +655,7 @@ async def send_tts(message, msg, response_text):
 
 import redis
 
-from aiogram.utils.exceptions import BotKicked, BotBlocked
+from aiogram.utils.exceptions import BotKicked, BotBlocked, RetryAfter
 
 
 async def check_inactive_users():
@@ -640,11 +672,7 @@ async def check_inactive_users():
 
             # Получаем данные пользователя из aiogram storage
             user_data = await dp.storage.get_data(chat=storage_id)
-            thread_id = None
-            if '&' in storage_id:
-                chat_id, thread_id = storage_id.split('&', maxsplit=1)
-            else:
-                chat_id = storage_id
+            chat_id, thread_id =  storage_to_chat_id(storage_id)
 
             if 'last_message_time' not in user_data:
                 continue
@@ -681,3 +709,12 @@ async def check_inactive_users():
                 except:
                     traceback.print_exc()
         await asyncio.sleep(3600)  # ждём час перед следующей проверкой
+
+
+def storage_to_chat_id(storage_id):
+    thread_id = None
+    if '&' in storage_id:
+        chat_id, thread_id = storage_id.split('&', maxsplit=1)
+    else:
+        chat_id = storage_id
+    return chat_id, thread_id
