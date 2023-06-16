@@ -1,15 +1,17 @@
+import asyncio
 import functools
+import json
 import logging
 import subprocess
 import tempfile
 import traceback
 from datetime import datetime, timedelta
+from json import JSONDecodeError
 
 from gtts import gTTS
 import os
 from aiogram import types, executor
 import openai
-
 
 # Установите ваши токены здесь
 from aiogram.types import BotCommand
@@ -20,7 +22,7 @@ import gpt
 import tgbot
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
 from datebase import Prompt, ImageUnstability
-from draw import process_draw_commands
+from draw import handle_draw, draw_and_answer
 
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
@@ -28,17 +30,13 @@ from image_caption import image_caption_generator
 from telegrambot.handlers import MessageLoggingMiddleware
 from tgbot import dialog_append
 
-
-openai.api_key=CHATGPT_API_KEY
-
-
-
+openai.api_key = CHATGPT_API_KEY
 
 
 @dp.message_handler(commands=['prompt'])
 async def change_role(message: types.Message):
     # Получение настроек для этого чата
-    data , chat_id = await get_chat_data(message)
+    data, chat_id = await get_chat_data(message)
 
     # Обновление настроек
     text = message.text.split(' ', 1)[-1]
@@ -46,11 +44,13 @@ async def change_role(message: types.Message):
     data['ASSISTANT_NAME_SHORT'] = get_first_word(text)
 
     # Сохранение обновленных настроек
-    await dp.storage.set_data(chat=chat_id,data=data)
+    await dp.storage.set_data(chat=chat_id, data=data)
 
     await message.reply(f'Now i am {data["ASSISTANT_NAME_SHORT"]}:\n' + text)
 
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('history'))
 async def process_callback_history_button(callback_query: types.CallbackQuery):
@@ -82,6 +82,7 @@ async def process_callback_history_button(callback_query: types.CallbackQuery):
     await bot.edit_message_text(text=text_to_show, chat_id=callback_query.message.chat.id,
                                 message_id=callback_query.message.message_id, reply_markup=keyboard)
 
+
 @dp.message_handler(commands=['history'])
 async def show_history(message: types.Message):
     m = await message.reply('...')
@@ -107,7 +108,7 @@ async def get_history(message):
     user_data, chat_id = await get_chat_data(message)
     if 'history' in user_data:
         history = user_data['history']
-        history_text = user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)+'\n'
+        history_text = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME) + '\n'
         for msg in history:
             role = 'Система: ' if msg['role'] == 'system' else ""
             history_text += f'{role}{msg["content"]}\n'
@@ -137,25 +138,25 @@ async def clear_history(message: types.Message):
 async def summarize_history(message: types.Message):
     msg = await message.reply('...')
     try:
-            user_data, chat_id = await get_chat_data(message)
-            await do_short_dialog(chat_id, user_data)
-            summary=await get_history(message)
-            await msg.edit_text( text=f"История диалога была суммирована:\n{summary[:3800]}")
+        user_data, chat_id = await get_chat_data(message)
+        await do_short_dialog(chat_id, user_data)
+        summary = await get_history(message)
+        await msg.edit_text(text=f"История диалога была суммирована:\n{summary[:3800]}")
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
 
-async def get_summary( message):
+async def get_summary(message):
     user_data, chat_id = await get_chat_data(message)
-    ASSISTANT_NAME=user_data.get('ASSISTANT_NAME',config.ASSISTANT_NAME)
+    ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
 
-    if user_data.get('history',None) is not None:
-        history_for_openai = [{'role': 'system',
-                               'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                              ] + [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
+    if user_data.get('history', None) is not None:
+        history = [{'role': 'system',
+                    'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                   ] + user_data['history']
         # Сформируйте запрос на суммирование к GPT-3.5
-        summary = await summary_gpt(history_for_openai)
+        summary = await summary_gpt(history)
     return summary
 
 
@@ -175,14 +176,16 @@ async def handle_voice(message: types.Message):
         # Скачайте аудиофайл
         await bot.download_file(file_path, destination=f"{file_id}.ogg")
 
-        text = await asyncio.get_running_loop().run_in_executor(None, recognize,(file_id))
-        message.text=text
-        await dialog_append(message,message.text)
-        asyncio.create_task( msg.edit_text(f'Вы сказали:\n{text}'))
+        text = await asyncio.get_running_loop().run_in_executor(None, recognize, (file_id))
+        message.text = text
+        await dialog_append(message, message.text)
+        asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text}'))
         return await handle_message(message)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
+
+
 @dp.message_handler(content_types=types.ContentType.PHOTO)
 async def handle_photo(message: types.Message):
     msg = await message.reply('...')
@@ -201,16 +204,18 @@ async def handle_photo(message: types.Message):
 
         text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, f'{file_id}.{ext}')
         message.text = f'User sends your photo, that ai recognized as "{text}"'
-        user=message.from_user
+        user = message.from_user
         content = f'User {user.full_name or user.username} sended image,  Ai recognized image as "{text}"'
         if message.caption:
-           content+=f',there are was user message "{message.caption}"'
+            content += f',there are was user message "{message.caption}"'
         await dialog_append(message, content, config.Role_SYSTEM)
         asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
-        return await handle_message(message,role='system')
+        return await handle_message(message, role='system')
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
+
+
 @dp.message_handler(content_types=types.ContentType.VIDEO)
 async def handle_video(message: types.Message):
     msg = await message.reply('...')
@@ -223,21 +228,24 @@ async def handle_video(message: types.Message):
         file = await bot.get_file(file_id)
         file_path = file.file_path
         file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
-        ext=file_path.rsplit('.',1)[-1]
+        ext = file_path.rsplit('.', 1)[-1]
         # Скачайте аудиофайл
         await bot.download_file(file_path, destination=f"{file_id}.{ext}")
 
-        text = await asyncio.get_running_loop().run_in_executor(None, recognize,file_id,f'.{ext}')
-        message.text=text
-        asyncio.create_task( msg.edit_text(f'Вы сказали:\n{text}'))
+        text = await asyncio.get_running_loop().run_in_executor(None, recognize, file_id, f'.{ext}')
+
+        await tgbot.dialog_append(message, text)
+        asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text}'))
         return await handle_message(message)
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
 
-speech_model=None
-def recognize(file_id,ext='.ogg'):
+speech_model = None
+
+
+def recognize(file_id, ext='.ogg'):
     # Преобразование аудиофайла в формат WAV для распознавания речи
     # Используйте SpeechRecognition для преобразования аудио в текст
     if False:
@@ -246,15 +254,17 @@ def recognize(file_id,ext='.ogg'):
             import whisper
             speech_model = whisper.load_model("small")
         result = speech_model.transcribe(f"{file_id}{ext}")
-        text=(result["text"])
+        text = (result["text"])
     else:
         os.system(f'ffmpeg -i {file_id}{ext} {file_id}.wav')
         audio_file = open(f'{file_id}.wav', "rb")
-        text=openai.Audio.transcribe("whisper-1", audio_file)['text']
+        text = openai.Audio.transcribe("whisper-1", audio_file)['text']
         os.remove(f'{file_id}.wav')
 
     os.remove(f'{file_id}{ext}')
     return text
+
+
 def recognize_old(file_id):
     # Преобразование аудиофайла в формат WAV для распознавания речи
     os.system(f"ffmpeg -i {file_id}.ogg {file_id}.wav")
@@ -271,7 +281,7 @@ def recognize_old(file_id):
 @dp.message_handler(commands=['gpt4'])
 async def switch_gpt4_mode(message: types.Message):
     # Получение данных пользователя
-    user_data,chat_id = await get_chat_data(message)
+    user_data, chat_id = await get_chat_data(message)
 
     # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
     use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
@@ -285,7 +295,11 @@ async def switch_gpt4_mode(message: types.Message):
 
     # Отправка сообщения пользователю об изменении режима
     await message.reply(f"GPT-4 mode is now {'ON' if use_gpt_4 else 'OFF'}.")
+
+
 from imagine import *
+
+
 @dp.edited_message_handler(content_types=types.ContentType.TEXT)
 async def handle_edited_message(message: types.Message):
     try:
@@ -296,23 +310,24 @@ async def handle_edited_message(message: types.Message):
             user_data['history'] = []
         try:
             # Находим и заменяем отредактированное сообщение в истории
-            msg_id=None
+            msg_id = None
             for msg in reversed(user_data['history']):
                 if msg['role'] == 'user' and 'message_id' in msg and msg['message_id'] == message.message_id:
-                    msg_id=user_data['history'].index(msg)
+                    msg_id = user_data['history'].index(msg)
                     break
-            user_data['history']=user_data['history'][:msg_id]
+            user_data['history'] = user_data['history'][:msg_id]
             await dp.storage.set_data(chat=chat_id, data=user_data)
         except:
             traceback.print_exc()
 
-        await dialog_append(message,message.text)
+        await dialog_append(message, message.text)
         await handle_message(message)
 
 
     except:
         traceback.print_exc()
         await message.answer('Не удалось получить ответ от Демиурга')
+
 
 @dp.message_handler(commands=['count'])
 async def show_memory_info(message: types.Message):
@@ -322,7 +337,10 @@ async def show_memory_info(message: types.Message):
     total_tokens = count_tokens(history)
     await message.reply(f"В памяти находится {total_symbols} символов и {total_tokens} токенов.")
 
-engine=None
+
+engine = None
+
+
 def text_to_speech(text):
     global engine
     # Преобразование текста в речь и сохранение во временный файл
@@ -342,20 +360,28 @@ def text_to_speech(text):
     engine.runAndWait()
 
     return filename
+
+
 async def text_to_speech2(text):
     # Преобразование текста в речь и сохранение во временный файл
     with tempfile.NamedTemporaryFile(delete=True) as fp:
         filename = fp.name + ".mp3"
-    tts = await asyncio.get_running_loop().run_in_executor(None, functools.partial(gTTS,lang='ru'),text)  # Указать язык текста
+    tts = await asyncio.get_running_loop().run_in_executor(None, functools.partial(gTTS, lang='ru'),
+                                                           text)  # Указать язык текста
     await asyncio.get_running_loop().run_in_executor(None,
-                                                     tts.save,(filename))
+                                                     tts.save, (filename))
     return filename
+
 
 from aiogram import types
 
-@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER,types.ContentType.POLL,types.ContentType.PINNED_MESSAGE,types.ContentType.DELETE_CHAT_PHOTO,types.ContentType.NEW_CHAT_PHOTO,types.ContentType.NEW_CHAT_TITLE,types.ContentType.DICE,types.ContentType.CONTACT,types.ContentType.STICKER])
-async def handle_chat_update(message: types.Message):
 
+@dp.message_handler(
+    content_types=[types.ContentType.NEW_CHAT_MEMBERS, types.ContentType.LEFT_CHAT_MEMBER, types.ContentType.POLL,
+                   types.ContentType.PINNED_MESSAGE, types.ContentType.DELETE_CHAT_PHOTO,
+                   types.ContentType.NEW_CHAT_PHOTO, types.ContentType.NEW_CHAT_TITLE, types.ContentType.DICE,
+                   types.ContentType.CONTACT, types.ContentType.STICKER])
+async def handle_chat_update(message: types.Message):
     user = message.from_user
 
     user_data, chat_id = await get_chat_data(message)
@@ -366,38 +392,43 @@ async def handle_chat_update(message: types.Message):
 
     # Добавьте сообщение пользователя в историю
     if message.content_type == types.ContentType.NEW_CHAT_MEMBERS:
-        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has joined the chat.'})
+        user_data['history'].append(
+            {'role': 'system', 'content': f'{user.full_name or user.username} has joined the chat.'})
     elif message.content_type == types.ContentType.LEFT_CHAT_MEMBER:
-        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has left the chat.'})
+        user_data['history'].append(
+            {'role': 'system', 'content': f'{user.full_name or user.username} has left the chat.'})
     elif message.content_type == types.ContentType.PHOTO:
-        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has sent a photo.'})
+        user_data['history'].append(
+            {'role': 'system', 'content': f'{user.full_name or user.username} has sent a photo.'})
     elif message.content_type == types.ContentType.VIDEO:
-        user_data['history'].append({"role": "system", "content": f'{user.full_name or user.username} has sent a video.',})
+        user_data['history'].append(
+            {"role": "system", "content": f'{user.full_name or user.username} has sent a video.', })
     elif message.content_type == types.ContentType.STICKER:
-        user_data['history'].append({'role': 'system', 'content': f'{user.full_name or user.username} has sent a sticker that represents "{message.sticker.emoji}" from sticker pack with name "{message.sticker.set_name}"'})
+        user_data['history'].append({'role': 'system',
+                                     'content': f'{user.full_name or user.username} has sent a sticker that represents "{message.sticker.emoji}" from sticker pack with name "{message.sticker.set_name}"'})
     else:
-        user_data['history'].append({"role": "system", "content": f'{user.full_name or user.username} has created new chat event: {message.content_type}',})
-    history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-    chat_response = await gpt_acreate(model='gpt-3.5-turbo', messages=history_for_openai)
+        user_data['history'].append({"role": "system",
+                                     "content": f'{user.full_name or user.username} has created new chat event: {message.content_type}', })
+
+    chat_response = await gpt_acreate(model='gpt-3.5-turbo-0613', messages=history_for_openai)
     response_text = chat_response['choices'][0]['message']['content']
 
     while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
         response_text = response_text.split(":", 1)[1].strip()
 
     msg = await message.answer(response_text)
-    ASSISTANT_NAME_SHORT=user_data.get('ASSISTANT_NAME_SHORT',config.ASSISTANT_NAME_SHORT)
-    user_data['history'].append({"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
-
-
-
+    ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
+    user_data['history'].append(
+        {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
 
 
 from asyncio import CancelledError
 
 processing_tasks = {}
 
+
 @dp.message_handler(content_types=types.ContentType.TEXT)
-async def handle_message(message: types.Message,role='user'):
+async def handle_message(message: types.Message, role='user'):
     user_data, chat_id = await get_chat_data(message)
 
     # Получите текущую задачу обработки для этого пользователя (если есть)
@@ -415,60 +446,103 @@ async def handle_message(message: types.Message,role='user'):
     processing_task = asyncio.create_task(wait_and_process_messages(chat_id, message, user_data, role))
     processing_tasks[chat_id] = processing_task
 
-    await dp.storage.set_data(chat=chat_id, data=user_data)
+
+def execute_python_code(code:str):
+    # Добавляем return в конец кода
+    code_with_return = "\n".join(code.split("\n")[:-1]) + "\nreturn " + \
+                       code.split("\n")[-1]
+
+    # Определяем функцию, которая будет исполнять код
+    exec_function_str = f"def _exec_function():\n" + "\n".join("  " + line for line in code_with_return.split("\n"))
+
+    # Исполняем код функции
+    exec_globals = {}
+    exec(exec_function_str, exec_globals)
+    exec_function = exec_globals['_exec_function']
+
+    # Вызываем функцию и возвращаем результат
+    return exec_function()
 
 
 async def wait_and_process_messages(chat_id, message, user_data, role):
-    msg=await message.reply('...')
+    msg = await message.reply('...')
     try:
         lock = dialog_locks.get(chat_id, asyncio.Lock())
         dialog_locks[chat_id] = lock
-        if lock.locked():
-            await asyncio.sleep(3)  # ждем 3 секунды
         async with lock:
-            user_data, chat_id = await get_chat_data(message)
-            # Сформируйте ответ от GPT-3.5
-            history_for_openai = [{"role": item["role"], "content": item["content"]} for item in user_data['history']]
-            ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
-            use_gpt_4= user_data.get('gpt-4',config.useGPT4)
+            while True:
+                user_data, chat_id = await get_chat_data(message)
+                # Сформируйте ответ от GPT-3.5
 
-            chat_response = await gpt_acreate(
-                model="gpt-3.5-turbo" if not use_gpt_4 else 'gpt-4',
-                messages=[
-                             {'role': 'system',
-                              'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                             {'role': config.Role_SYSTEM, 'content': f'{config.instructions}'}
-                         ] + history_for_openai
-            )
-            # Добавьте ответ бота в историю
-            response_text = chat_response['choices'][0]['message']['content']
+                ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
+                use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
 
-            while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
-                response_text = response_text.split(":", 1)[1].strip()
+                chat_response = await gpt_acreate(
+                    model="gpt-3.5-turbo-0613" if not use_gpt_4 else 'gpt-4',
+                    messages=[
+                                 {'role': 'system',
+                                  'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                 # {'role': config.Role_SYSTEM, 'content': f'{config.instructions}'}
+                             ] + user_data['history'],
+                    functions=config.functions,
+                    function_call="auto",
+                )
+                # Добавьте ответ бота в историю
+                # Проверка наличия функционального вызова в ответе
+                if 'function_call' in chat_response['choices'][0]['message']:
+                    function_call = chat_response['choices'][0]['message']['function_call']
+                    function_name = function_call['name']
+                    response_text=function_call['arguments']
+                    function_args={}
+                    try:
+                        function_args = json.loads(function_call['arguments'])
+                    except JSONDecodeError:
+                        response_text = function_call['arguments']
+                        logging.error(f"gpt return no arguments for function {function_name} and arguments is {function_call['arguments']}")
+                        # Обработка функционального вызова
+                    process_next = False
+                    if function_name == 'draw':
+                        image_description_ = function_args.get('image_description',response_text)
+                        message.text = f"/{function_name} {image_description_}"
+                        asyncio.create_task(draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
+                        response_text = None
+                    elif function_name == 'web':
+                        url_ = function_args.get('url',response_text)
+                        message.text = f"/{function_name} {url_}"
+                        response_text = await function_web(url_)
+                        process_next = True
+                    elif function_name == 'search':
+                        query_ = function_args.get('query',response_text)
+                        message.text = f"/{function_name} {query_}"
+                        response_text = await function_search(query_)
+                        response_text = json.dumps(response_text)
+                        process_next = True
+                    elif function_name == 'execute_python_code':
+                        code= function_args.get('code',response_text)
+                        try:
+                            res = str(execute_python_code(code))
+                        except Exception as e:
+                            res = str(e)
+                        response_text = function_args.get('code', response_text) + '\n>>> '+ res
+                    user_data, chat_id = await dialog_append(message, text=response_text, role='function',
+                                                             name=function_name)
+                    if process_next:
+                        message.text = response_text
+                        role= config.Role_ASSISTANT
+                        await message.reply(response_text[:4096])
+                        continue
 
-            ASSISTANT_NAME_SHORT = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
-            response_text_ = f"{ASSISTANT_NAME_SHORT}:{response_text}"
-            user_data,chat_id = await dialog_append(message, response_text_, role=config.Role_ASSISTANT)
-        #response_text = process_draw_commands(response_text, r'draw\("(.+?)"\)', message.chat.id, message.message_id)
-        response_text = process_draw_commands(response_text, r'\/draw (.+)\/?', message.chat.id, message.message_thread_id)
-        response_text = process_search_commands(response_text, message, r'\/search (.+)\/?')
-        response_text = process_search_commands(response_text, message, r'\/web (.+)\/?', coroutine=handle_web)
 
-        response_text = process_draw_commands(response_text, r'\(?\s*draw\(\s*[\'"](.+?)[\'"]\s*\)\s*\)?', message.chat.id,
-                                              message.message_thread_id)
-        response_text = process_search_commands(response_text,message, r'\(?\s*search\([\'"](.+?)[\'"]\)\s*\)?')
-        response_text = process_search_commands(response_text,message, r'\(?\s*web\([\'"](.+?)[\'"]\)\s*\)?', coroutine=handle_web)
+                else:
+                    # Обработка текстового ответа, как раньше
+                    response_text = chat_response['choices'][0]['message']['content']
 
-        # обработка кода Python
-        python_code_pattern = r'```(.+?)```'
-        python_code_matches = re.findall(python_code_pattern, response_text, re.DOTALL)
-        for match in python_code_matches:
-            try:
-                exec_result = exec(match)
-                response_text = response_text.replace(f'```{match}```', str(match)+'-->'+str(exec_result))
-            except Exception as e:
-                response_text = response_text.replace(f'```{match}```', str(match)+'-->'+str(e))
+                    while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
+                        response_text = response_text.split(":", 1)[1].strip()
 
+                    user_data, chat_id = await dialog_append(message, response_text, role=config.Role_ASSISTANT)
+
+                break
         asyncio.create_task(do_short_dialog(chat_id, user_data))
         # Отправьте ответ пользователю
         if response_text:
@@ -488,15 +562,15 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
         traceback.print_exc()
         await msg.edit_text(f'Error in getting answer {traceback.format_exc()}')
 
+
 from aiogram import types
-
-
-
 
 # Создайте глобальную блокировку
 dialog_locks = {}
+
+
 async def do_short_dialog(chat_id, user_data):
-    MAX_MEMORY_SIZE = 1200  # set the maximum memory size
+    MAX_MEMORY_SIZE = gpt.MAX_TOKENS / 2  # set the maximum memory size
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock
@@ -504,7 +578,7 @@ async def do_short_dialog(chat_id, user_data):
     # Memory management must be synchronized to prevent concurrent writing.
     async with lock:
         # Copy the history in reverse order
-        reversed_history = user_data['history'][::-1]
+        reversed_history = user_data['history']
         reduced_history = []
         total_tokens = 0
 
@@ -517,7 +591,7 @@ async def do_short_dialog(chat_id, user_data):
             total_tokens += message_tokens
 
         # We reverse the reduced history again to maintain the original order
-        reduced_history = reduced_history[::-1]
+        reduced_history = reduced_history
 
         # Generate summary for remaining history
         remaining_history = [msg for msg in user_data['history'] if msg not in reduced_history]
@@ -531,8 +605,7 @@ async def do_short_dialog(chat_id, user_data):
 
         # Save the updated history to the user's data
         await dp.storage.set_data(chat=chat_id, data=user_data)
-
-
+        return summary
 
 
 async def send_tts(message, msg, response_text):
@@ -544,7 +617,6 @@ async def send_tts(message, msg, response_text):
         with open(voice_filename, 'rb') as audio:
             await message.reply_voice(voice=audio, caption=response_text[:1024])
         await msg.delete()
-
 
 
 import redis
@@ -568,11 +640,9 @@ async def check_inactive_users():
             user_data = await dp.storage.get_data(chat=storage_id)
             thread_id = None
             if '&' in storage_id:
-                chat_id, thread_id = storage_id.split('&',maxsplit=1)
-            elif '-' in storage_id:
-                chat_id, thread_id = storage_id.split('-', maxsplit=1)
+                chat_id, thread_id = storage_id.split('&', maxsplit=1)
             else:
-                chat_id=storage_id
+                chat_id = storage_id
 
             if 'last_message_time' not in user_data:
                 continue
@@ -581,18 +651,19 @@ async def check_inactive_users():
                 # генерируем сообщение
                 ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
 
-                await tgbot.dialog_append_raw(storage_id, 'Your next task is to motivate the user to continue the conversation. The user has not interacted with you for more than 24 hours.', None, 'system')
+                await tgbot.dialog_append_raw(storage_id,
+                                              'Your next task is to motivate the user to continue the conversation. The user has not interacted with you for more than 24 hours.',
+                                              None, 'system')
                 user_data = await dp.storage.get_data(chat=storage_id)
                 user_data['last_message_time'] = datetime.now().timestamp()
                 try:
-                    msg=await dp.bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
+                    msg = await dp.bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
                     await dp.storage.set_data(chat=storage_id, data=user_data)
                     history_for_openai = [{'role': 'system',
                                            'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                                          ] + [{"role": item["role"], "content": item["content"]} for item in
-                                               user_data['history']]
+                                          ] + user_data['history']
                     chat_response = await gpt_acreate(
-                        model="gpt-3.5-turbo",
+                        model="gpt-3.5-turbo-0613",
                         messages=history_for_openai
                     )
                     response_text = chat_response['choices'][0]['message']['content']
@@ -600,9 +671,9 @@ async def check_inactive_users():
                     # отправляем сообщение
 
                     logging.info(f'sended {response_text} to {storage_id}')
-                    msg = await msg.edit_text( text=response_text)
-                    await tgbot.dialog_append(msg,response_text,config.Role_ASSISTANT)
-                except (BotKicked,BotBlocked):
+                    msg = await msg.edit_text(text=response_text)
+                    await tgbot.dialog_append(msg, response_text, config.Role_ASSISTANT)
+                except (BotKicked, BotBlocked):
                     # Бот был исключён из чата, удаляем данные о чате
                     await dp.storage.reset_data(chat=storage_id)
                 except:

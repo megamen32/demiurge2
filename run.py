@@ -20,6 +20,7 @@ async def on_startup_disp(dp):
         BotCommand("prompt", "Edit gpt start prompt"),
         BotCommand("draw_settings", "draw settings"),
         BotCommand("draw", "{prompt} draws an image"),
+        BotCommand("count", "show history length"),
         BotCommand("imagine", "{prompt} draws an image"),
         BotCommand("i", "{prompt} draws an image"),
         BotCommand("search", "search{prompt} for news and trends"),

@@ -136,20 +136,28 @@ async def handle_web(message: types.Message):
         if promt is None or not any(promt):
             promt=message.text
         msg = await message.reply(f'opening link... {promt}')
-        url = promt
-        text = await asyncio.get_event_loop().run_in_executor(None,open_url,(url))
+        text = await function_web(promt)
         message.text=text
         await msg.edit_text(message.text[:4096])
 
         message_text = message.text
         message.text=await shorten(message_text)
-        await tgbot.dialog_append(message,message.text,'system')
+        await tgbot.dialog_append(message,message.text,role='function',name='web')
 
         from main import handle_message
-        return await handle_message(message,role='system')
+        return await handle_message(message,role='function')
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось скачать сайт')
+
+
+async def function_web(promt):
+    url = promt
+    try:
+        text = await asyncio.get_event_loop().run_in_executor(None, open_url, (url))
+    except Exception as e:
+        text=traceback.format_exc(limit=2,chain=False)
+    return text
 
 
 def open_url(url):
@@ -158,14 +166,14 @@ def open_url(url):
     article.download()
     article.parse()
     if article.text:
-        text = f'Скинул сайт {url}, вот содержимое: {article.text}'
+        text = f'{article.text}'
     else:
         r = requests.get(url)
         soup = BeautifulSoup(r.content, 'html.parser')
         # извлекаем все элементы <p>
         paragraphs = '\n'.join([ p.text for p in soup.findAll('p')])
         # возвращаем все абзацы в виде строки
-        text = f'Скинул сайт {url}, вот содержимое: {paragraphs}'
+        text = f'{paragraphs}'
     return text
 
 
@@ -180,17 +188,22 @@ async def handle_search(message: types.Message):
     if promt is None or not any(promt):
         promt = message.text
     msg = await message.reply(f'searching for... {promt}')
-    loop=asyncio.get_running_loop()
-    #tags=loop.run_in_executor(None,trends.get_tags)
-    news=await loop.run_in_executor(None,trends.get_news,promt)
+
+    news=await function_search(promt)
+
     text='\n'.join(news)
     #text+='\n'.join([f'{n}' for n in tags])
 
     await msg.edit_text(text)
-    message.text=f'Search results for "{promt}":\n {text}'
-    await tgbot.dialog_append(message, message.text, 'system')
+    await tgbot.dialog_append(message, news, 'function',name='search')
     from main import handle_message
     return await handle_message(message,role='system')
+async def function_search(promt):
+    loop = asyncio.get_running_loop()
+    # tags=loop.run_in_executor(None,trends.get_tags)
+    news = await loop.run_in_executor(None, trends.get_news, promt)
+    news = [{'Title': result['title'], 'url': result['link'],'Snippet': result['snippet']} for result in news]
+    return news
 
 def process_search_commands(response_text,message, pattern='/search (.+)\/?',coroutine=handle_search):
     while True:

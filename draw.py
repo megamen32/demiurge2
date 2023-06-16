@@ -20,7 +20,7 @@ from aiogram import types
 from config import dp, bot
 from datebase import Prompt, ImageMidjourney
 from gpt import gpt_acreate
-from tgbot import get_chat_data, get_chat_data_raw, dialog_append, dialog_append_raw
+from tgbot import get_chat_data, get_storage_from_chat, dialog_append, dialog_append_raw
 
 MIDJOURNEY = 'MIDJOURNEY'
 UNSTABILITY = 'UNSTABILITY'
@@ -81,10 +81,9 @@ async def improve_prompt(prompt, storage_id):
     if lang == 'ru' or lang == 'uk' or lang == 'mk':
         user_data = await dp.storage.get_data(chat=storage_id)
         history = user_data.get('history', [])
-        history_for_openai = [{"role": item["role"], "content": item["content"]} for item in history]
         chat_response = await gpt_acreate(
-            model="gpt-3.5-turbo",
-            messages=history_for_openai + [
+            model="gpt-3.5-turbo-0613",
+            messages=history + [
                 {"role": "system",
                  "content": '''Use the following info as a reference to create ideal Midjourney prompts.
 
@@ -185,7 +184,7 @@ def translate_promt(prompt):
 
 
 async def draw_and_answer(prompt, chat_id, reply_to_id):
-    user_data, user_id = await get_chat_data_raw(chat_id, reply_to_id)
+    user_data, user_id = await get_storage_from_chat(chat_id, reply_to_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
     try:
         style = Style[user_data.get('style', 'ANIME_V2')]
@@ -229,12 +228,9 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
         photo2 = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file),
                                       caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb,
                                       reply_to_message_id=reply_to_id)
-        await dialog_append_raw(chat_id,
-                                f'Finished /draw command. Generated image based on "{prompt}" with {style} style and sent to chat.',
-                                reply_to_id,
-                                config.Role_SYSTEM)
         if photo is not None:
             await photo.delete()
+        return  f'Finished /draw command. Generated image based on "{prompt}" with {style} style and sent to chat.'
     except:
         error = True
         traceback.print_exc()
@@ -254,7 +250,7 @@ async def handle_draw(message: types.Message):
         await message.reply("Please provide a description for the image.")
         return
 
-    await draw_and_answer(prompt, message.chat.id, message.message_thread_id)
+    return await draw_and_answer(prompt, message.chat.id, message.message_thread_id)
 
 
 def create_settings_keyboard():
@@ -312,12 +308,4 @@ async def handle_style_and_ratio(message: types.Message, state: FSMContext):
     await dp.storage.set_data(chat=chat_id, data=user_data)
 
 
-def process_draw_commands(response_text, pattern, chat_id, reply_id):
-    while True:
-        prompts = re.findall(pattern, response_text)
-        if not prompts:
-            break
-        for prompt in prompts:
-            asyncio.create_task(draw_and_answer(prompt, chat_id, reply_id))
-        response_text = re.sub(pattern, '', response_text)
-    return response_text
+

@@ -19,9 +19,9 @@ class MessageLoggingMiddleware(BaseMiddleware):
                                                                                                 ASSISTANT_NAME_SHORT)
             message.text = f'{message.text} (this message is in response to "{from_}" who said: {message.reply_to_message.text or message.reply_to_message.caption})'
 
-        text_ = f'{message.from_user.full_name or message.from_user.username}:{message.text}'
-        logging.debug(text_)
-        await tgbot.dialog_append(message,text_)
+
+
+        await tgbot.dialog_append(message,message.text)
         # Продолжаем обработку следующими middleware и обработчиками
 
 

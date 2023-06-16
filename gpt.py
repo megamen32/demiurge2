@@ -1,5 +1,6 @@
 # Настройка глобальной переменной для очереди
 import asyncio
+import logging
 import re
 from asyncio import InvalidStateError
 
@@ -10,7 +11,7 @@ from openai.error import RateLimitError
 
 import config
 request_queue = asyncio.Queue()
-
+MAX_TOKENS = 4097
 async def process_queue():
     while True:
         task = await request_queue.get()
@@ -62,7 +63,7 @@ async def agpt(**params):
                             else:
                                 break
                         params['messages'] = trimmed_messages[::-1]  # reverse back
-                    params['messages']=[{"role": item["role"], "content": item["content"]} for item in params['messages']]
+                    params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item else {})} for item in params['messages']]
                     result = await openai.ChatCompletion.acreate(**params)
                     return result
                 except RateLimitError as error:
@@ -108,7 +109,7 @@ def count_tokens(history):
     return tokens
 
 
-MAX_TOKENS = 4000
+
 
 
 async def shorten(message_text):
@@ -130,7 +131,7 @@ async def shorten(message_text):
 
 async def summary_gpt(history_for_openai):
     chat_response = await gpt_acreate(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-0613",
         messages=history_for_openai + [
             {
                 'role': 'system',

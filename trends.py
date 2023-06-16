@@ -39,12 +39,12 @@ def get_news(search_term=' '):
         'q': search_term,
         'key': api_key,
         'cx': cx,
-        'num':5,
+        'num':3,
     }
     response = requests.get(base_url, params=params)
     items= response.json()['items']
-    text=[f"Title: {result['title']}\nLink: {result['link']}\nSnippet: {result['snippet']}\n" for result in items]
-    return text
+
+    return items
 def get_tags():
     from pytrends.request import TrendReq
     pytrends = TrendReq()
