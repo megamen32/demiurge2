@@ -1,3 +1,4 @@
+import json
 import random
 import re
 import traceback
@@ -239,7 +240,8 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             file_info = await bot.get_file(photo2.photo[-1].file_id)
             url = f"https://api.telegram.org/file/bot{config.TELEGRAM_BOT_TOKEN}/{file_info.file_path}"
 
-        return {'prompt': prompt, 'style': style.name if isinstance(style,Style) else style, 'image generated without exception':True}
+        di= {'prompt': prompt, 'style': style.name if isinstance(style,Style) else style, 'image generated without exception':True}
+        await tgbot.dialog_append(photo2,json.dumps(di,ensure_ascii=False),'function',name='draw')
     except:
         error = True
         traceback.print_exc()
@@ -247,7 +249,8 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             await bot.send_message(chat_id, "An error occurred while generating the image.")
         else:
             await msg.edit_text("An error occurred while generating the image.")
-        return {'prompt': prompt, 'style': style, 'image generated without exception':traceback.format_exc(0,False)}
+        di= {'prompt': prompt, 'style': style, 'image generated without exception':traceback.format_exc(0,False)}
+        await tgbot.dialog_append(msg, json.dumps(di, ensure_ascii=False), 'function', name='draw')
     finally:
         if not error:
             await msg.delete()

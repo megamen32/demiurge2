@@ -493,7 +493,7 @@ async def process_function_call(function_name, function_args, message, step=0):
         # Сохранение обновленных данных пользователя
         await dp.storage.set_data(chat=storage_id, data=user_data)
 
-        response_text_=asyncio.create_task( draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
+        asyncio.create_task( draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
         response_text=None
         process_next = False
 
