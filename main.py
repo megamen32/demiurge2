@@ -497,7 +497,7 @@ async def process_function_call(function_name, function_args, message, step=0):
         response_text=None
         process_next = False
 
-    elif function_name == 'web':
+    elif function_name == 'web' or function_name=='extract_webpage_content' or function_name== 'open_link':
         url_ = function_args.get('url', '')
         message.text = f"/{function_name} {url_}"
         response_text, err = await function_web(url_)
@@ -596,8 +596,8 @@ async def send_response_text(msg, response_text):
 
 async def do_short_dialog(chat_id, user_data,force=False):
     global dialog_locks
-    MAX_MEMORY_SIZE = gpt.MAX_TOKENS*0.8
-    normal_MEMORY_SIZE = gpt.MAX_TOKENS*0.1
+    MAX_MEMORY_SIZE = gpt.MAX_TOKENS['gpt-3.5-turbo-0613']*0.9
+    normal_MEMORY_SIZE = gpt.MAX_TOKENS['gpt-3.5-turbo-0613']*0.12
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock

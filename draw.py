@@ -87,7 +87,7 @@ async def improve_prompt(prompt, storage_id):
         user_data = await dp.storage.get_data(chat=storage_id)
         history = user_data.get('history', [])
         chat_response = await gpt_acreate(
-            model="gpt-3.5-turbo-0613",
+            model="gpt-3.5-turbo",
             messages=history + [
                 {"role": "system",
                  "content": '''Use the following info as a reference to create ideal Midjourney prompts.
@@ -132,29 +132,45 @@ You will receive a text prompt and then create one creative prompt for the Midjo
     return prompt
 
 
-def create_style_keyboard(prompt):
+def create_style_keyboard(prompt, start_index=0):
     styles = list(Style.__members__.keys())
     ratios = list(Ratio.__members__.keys())
     prompt_db, _ = Prompt.get_or_create(text=prompt)
     kb = types.InlineKeyboardMarkup(resize_keyboard=True)
-    width = 5
+    width = 3
     raws = 6
-    horizontal_styles = random.sample(styles, width * raws)
+
+    # Сколько страниц стилей доступно
+    pages = len(styles) // (width * raws)
+
+    # Выводимые стили в зависимости от текущей страницы (start_index)
+    horizontal_styles = styles[start_index * width * raws:(start_index + 1) * width * raws]
+
     for i in range(raws):
         # Добавление горизонтального ряда кнопок со случайными стилями
-
         buttons = [
             types.InlineKeyboardButton(style.lower(), callback_data=f'style_{prompt_db.id}_{style}')
             for style in horizontal_styles[i * width:(i + 1) * width]
         ]
         kb.row(*buttons)
 
+    # Добавляем кнопки навигации, если они нужны
+    if start_index > 0:  # Если не первая страница, добавляем кнопку назад
+        kb.row(
+            types.InlineKeyboardButton("< Back", callback_data=f'prev_{prompt_db.id}_{start_index - 1}')
+        )
+    if start_index < pages:  # Если не последняя страница, добавляем кнопку вперёд
+        kb.row(
+            types.InlineKeyboardButton("Next >", callback_data=f'next_{prompt_db.id}_{start_index + 1}')
+        )
+
+    # Добавляем кнопки соотношения сторон
     buttons = [
         types.InlineKeyboardButton(ratio.lower().replace('ratio_', ''), callback_data=f'ratio_{prompt_db.id}_{ratio}')
         for ratio in ratios
     ]
-
     kb.row(*buttons)
+
     buttons = []
     buttons.append(types.InlineKeyboardButton(MIDJOURNEY, callback_data=(f'style_{prompt_db.id}_{MIDJOURNEY}')))
     buttons.append(types.InlineKeyboardButton(UNSTABILITY, callback_data=(f'style_{prompt_db.id}_{UNSTABILITY}')))
@@ -163,22 +179,39 @@ def create_style_keyboard(prompt):
     return kb
 
 
-@dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style'))
+@dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style') or callback.data.startswith('prev') or callback.data.startswith('next'))
 async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
     user_data, chat_id = await get_chat_data(query.message)
-    _, id, text = query.data.split('_', 2)
+    command, id, text = query.data.split('_', 2)
     prompt = Prompt.get_by_id(id).text
+    redraw = False
     if text in Style.__members__ or text in [MIDJOURNEY, UNSTABILITY]:
         user_data['style'] = text
         await query.answer(f"Set style to {text}.")
     elif text in Ratio.__members__:
         user_data['ratio'] = text
         await query.answer(f"Set ratio to {text}.")
+    elif command == "prev":
+        # Decrease the start_index
+        user_data['style_start_index'] = max(0, user_data.get('style_start_index', 0) - 1)
+        await query.answer("Scrolling to previous styles.")
+        redraw = False
+    elif command == "next":
+        # Increase the start_index
+        user_data['style_start_index'] = min((len(Style.__members__) - 1)//18, user_data.get('style_start_index', 0) + 1)
+        await query.answer("Scrolling to next styles.")
+        redraw = False
     else:
         await query.answer("Unknown option.")
     await dp.storage.set_data(chat=chat_id, data=user_data)
-    await draw_and_answer(prompt, query.message.chat.id, query.message.message_thread_id)
+    if not redraw:
+        kb = create_style_keyboard(prompt,user_data.get('style_start_index',0))  # Update keyboard with new styles
+        await bot.edit_message_reply_markup(chat_id=query.message.chat.id,
+                                            message_id=query.message.message_id,
+                                            reply_markup=kb)
+    else:
+        await draw_and_answer(prompt, query.message.chat.id, query.message.message_thread_id)
 
 
 def translate_promt(prompt):
@@ -216,11 +249,12 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             asyncio.create_task(msg.edit_text(new_text))
         img_file, url = await gen_img(prompt, ratio, style)
         if img_file is None:
-            await msg.edit_text("An error occurred while generating the image.")
-            return
+            raise Exception("500 server iname generator error ")
+
 
         photo = None
-        kb :types.InlineKeyboardMarkup= create_style_keyboard(prompt)
+        start_index=user_data.get('style_start_index', 0)
+        kb :types.InlineKeyboardMarkup= create_style_keyboard(prompt,start_index)
         if isinstance(style, Style):
             photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}',
                                          reply_to_message_id=reply_to_id)
@@ -242,18 +276,13 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
 
         di= {'prompt': prompt, 'style': style.name if isinstance(style,Style) else style, 'image generated without exception':True}
         await tgbot.dialog_append(photo2,json.dumps(di,ensure_ascii=False),'function',name='draw')
-    except:
-        error = True
+    except Exception as e:
         traceback.print_exc()
-        if msg is None:
-            await bot.send_message(chat_id, "An error occurred while generating the image.")
-        else:
-            await msg.edit_text("An error occurred while generating the image.")
+        await bot.send_message(chat_id=chat_id,text= f"An error occurred while generating the image. {e}",reply_to_message_id=reply_to_id)
         di= {'prompt': prompt, 'style': style, 'image generated without exception':traceback.format_exc(0,False)}
         await tgbot.dialog_append(msg, json.dumps(di, ensure_ascii=False), 'function', name='draw')
     finally:
-        if not error:
-            await msg.delete()
+        await msg.delete()
 
 
 @dp.message_handler(commands=['draw'])

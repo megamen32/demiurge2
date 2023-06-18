@@ -3,6 +3,7 @@ import asyncio
 import logging
 import re
 from asyncio import InvalidStateError
+from collections import defaultdict
 
 import openai
 from aiolimiter import AsyncLimiter
@@ -11,7 +12,7 @@ from openai.error import RateLimitError
 
 import config
 request_queue = asyncio.Queue()
-MAX_TOKENS = 4097
+MAX_TOKENS = defaultdict(lambda: 4097, {'gpt-3.5-turbo-0613':4097,'gpt-3.5-turbo-16k':16384,'gpt-4':16384,'gpt-3.5-turbo':4097})
 async def process_queue():
     while True:
         task = await request_queue.get()
@@ -50,15 +51,15 @@ async def agpt(**params):
                 try:
                     config.set_random_api_key()
                     # Ограничьте историю MAX_HISTORY сообщениями
-                    if count_tokens(params['messages']) > MAX_TOKENS:
+                    if count_tokens(params['messages']) > MAX_TOKENS[params['model']]:
                         trimmed_messages = []
                         for msg in params['messages'][::-1]:  # reverse the list
                             msg_token_count = count_tokens([msg])
-                            if msg_token_count > MAX_TOKENS // 2:
+                            if msg_token_count > MAX_TOKENS[params['model']] // 2:
                                 # Trim the message
-                                msg['content'] = trim_message_to_tokens(msg['content'], MAX_TOKENS // 2)
+                                msg['content'] = trim_message_to_tokens(msg['content'], MAX_TOKENS[params['model']] // 2)
                                 msg_token_count = count_tokens([msg])
-                            if not trimmed_messages or (count_tokens(trimmed_messages) + msg_token_count <= MAX_TOKENS):
+                            if not trimmed_messages or (count_tokens(trimmed_messages) + msg_token_count <= MAX_TOKENS[params['model']]):
                                 trimmed_messages.append(msg)
                             else:
                                 break
@@ -113,25 +114,32 @@ def count_tokens(history):
 
 
 async def shorten(message_text):
-    if count_tokens([{'content': message_text}]) > MAX_TOKENS:
+    tokens = count_tokens([{'content': message_text}])
+    if tokens > MAX_TOKENS['gpt-3.5-turbo-16k']:
         normal_text = []
         ctns = message_text.split('\n')
         if len(ctns) <= 2:
             ctns = message_text.split()
-        while count_tokens(normal_text) < MAX_TOKENS and any(ctns):
+        while count_tokens(normal_text) < MAX_TOKENS['gpt-3.5-turbo-16k'] and any(ctns):
             elem = ctns.pop()
             content_elem_ = {'content': elem}
-            if count_tokens(normal_text + [content_elem_]) < MAX_TOKENS:
+            if count_tokens(normal_text + [content_elem_]) < MAX_TOKENS['gpt-3.5-turbo-16k']:
                 normal_text.append(content_elem_)
             else:
                 break
         message_text = '\n'.join(msg['content'] for msg in normal_text)
+        tokens= count_tokens([{'content': message_text}])
+    if tokens > MAX_TOKENS['gpt-3.5-turbo-0613']//3:
+        message_text=await summary_gpt([{'role': config.Role_USER, 'content':message_text}])
+
     return message_text
 
 
 async def summary_gpt(history_for_openai):
+    history_for_openai = [msg for msg in history_for_openai if
+                          msg['role'] in [config.Role_ASSISTANT, config.Role_SYSTEM, config.Role_USER]]
     chat_response = await gpt_acreate(
-        model="gpt-3.5-turbo-0613",
+        model="gpt-3.5-turbo-16k",
         messages=history_for_openai + [
             {
                 'role': 'system',

@@ -91,14 +91,14 @@ functions = [
         },
     },
     {
-        "name": "web",
-        "description": "Extract text from a webpage",
+        "name": "open_link",
+        "description": "Opens a specified URL, retrieves and analyzes the textual content of the webpage.",
         "parameters": {
             "type": "object",
             "properties": {
                 "url": {
                     "type": "string",
-                    "description": "The URL of the webpage to extract text from",
+                    "description": "The URL or link of the webpage to be opened and from which the text content will be extracted.",
                 },
             },
             "required": ["url"],

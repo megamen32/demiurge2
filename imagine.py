@@ -124,7 +124,7 @@ async def handle_draw_callback(query: types.CallbackQuery):
     await msg.edit_text("An error occurred while upscalling the image.")
 
 @dp.message_handler(commands=['web'])
-@dp.message_handler(regexp=r'https?://[^\s]+')
+#@dp.message_handler(regexp=r'https?://[^\s]+')
 async def handle_web(message: types.Message):
 
     try:
@@ -142,7 +142,7 @@ async def handle_web(message: types.Message):
 
         message_text = message.text
         message.text=await shorten(message_text)
-        await tgbot.dialog_append(message,message.text,role='function',name='web')
+        await tgbot.dialog_append(message,message.text,role='function',name='open_link')
 
         from main import handle_message
         return await handle_message(message,role='function')
