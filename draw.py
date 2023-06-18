@@ -164,8 +164,8 @@ def create_style_keyboard(prompt, start_index=0):
             kb.add(types.InlineKeyboardButton('>>', callback_data=f'next_{prompt_db.id}_{start_index}'))
     else:
         # Используем вариант со списком страниц
-        kb.row(*[types.InlineKeyboardButton(f"{i + 1}c.", callback_data=f'page_{prompt_db.id}_{i+1}') for i in
-                 range(pages+ 1) if i != start_index])
+        kb.row(*[types.InlineKeyboardButton(f"{i + 1 }c." if i!=start_index else f">{i+1}<", callback_data=f'page_{prompt_db.id}_{i+1}') for i in
+                 range(pages+ 1) ])
 
     buttons = [
         types.InlineKeyboardButton(ratio.lower().replace('ratio_', ''), callback_data=f'ratio_{prompt_db.id}_{ratio}')
