@@ -131,18 +131,19 @@ You will receive a text prompt and then create one creative prompt for the Midjo
     # If the language is English, return the original prompt
     return prompt
 
+width = 3
+raws = 6
 
+# Сколько страниц стилей доступно
+PAGE_SIZE = width * raws
 def create_style_keyboard(prompt, start_index=0):
     styles = list(Style.__members__.keys())
     ratios = list(Ratio.__members__.keys())
     prompt_db, _ = Prompt.get_or_create(text=prompt)
     kb = types.InlineKeyboardMarkup(resize_keyboard=True)
-    width = 3
-    raws = 6
 
-    # Сколько страниц стилей доступно
-    pages = len(styles) // (width * raws)
-
+    pages = len(styles) // (PAGE_SIZE)
+    use_pages=False
     # Выводимые стили в зависимости от текущей страницы (start_index)
     horizontal_styles = styles[start_index * width * raws:(start_index + 1) * width * raws]
 
@@ -154,17 +155,18 @@ def create_style_keyboard(prompt, start_index=0):
         ]
         kb.row(*buttons)
 
-    # Добавляем кнопки навигации, если они нужны
-    if start_index > 0:  # Если не первая страница, добавляем кнопку назад
-        kb.row(
-            types.InlineKeyboardButton("< Back", callback_data=f'prev_{prompt_db.id}_{start_index - 1}')
-        )
-    if start_index < pages:  # Если не последняя страница, добавляем кнопку вперёд
-        kb.row(
-            types.InlineKeyboardButton("Next >", callback_data=f'next_{prompt_db.id}_{start_index + 1}')
-        )
+    if use_pages:
 
-    # Добавляем кнопки соотношения сторон
+        # Добавить кнопки "Вперед" и "Назад", если это необходимо
+        if start_index > 0:
+            kb.add(types.InlineKeyboardButton('<<', callback_data=f'prev_{prompt_db.id}_{start_index}'))
+        if start_index  < len(styles)//PAGE_SIZE:
+            kb.add(types.InlineKeyboardButton('>>', callback_data=f'next_{prompt_db.id}_{start_index}'))
+    else:
+        # Используем вариант со списком страниц
+        kb.row(*[types.InlineKeyboardButton(f"{i + 1}c.", callback_data=f'page_{prompt_db.id}_{i+1}') for i in
+                 range(pages+ 1) if i != start_index])
+
     buttons = [
         types.InlineKeyboardButton(ratio.lower().replace('ratio_', ''), callback_data=f'ratio_{prompt_db.id}_{ratio}')
         for ratio in ratios
@@ -179,7 +181,7 @@ def create_style_keyboard(prompt, start_index=0):
     return kb
 
 
-@dp.callback_query_handler(lambda callback: callback.data.startswith('ratio') or callback.data.startswith('style') or callback.data.startswith('prev') or callback.data.startswith('next'))
+@dp.callback_query_handler(lambda callback: callback.data.startswith('ratio')or callback.data.startswith('page') or callback.data.startswith('style') or callback.data.startswith('prev') or callback.data.startswith('next'))
 async def handle_ratio_callback(query: types.CallbackQuery):
     # Обработка callback для соотношений
     user_data, chat_id = await get_chat_data(query.message)
@@ -199,8 +201,13 @@ async def handle_ratio_callback(query: types.CallbackQuery):
         redraw = False
     elif command == "next":
         # Increase the start_index
-        user_data['style_start_index'] = min((len(Style.__members__) - 1)//18, user_data.get('style_start_index', 0) + 1)
+        user_data['style_start_index'] = min((len(Style.__members__) - 1)//PAGE_SIZE, user_data.get('style_start_index', 0) + 1)
         await query.answer("Scrolling to next styles.")
+        redraw = False
+    elif command == "page":
+        # Set the start_index to the selected page
+        user_data['style_start_index'] = (int(text) - 1)
+        await query.answer(f"Set page to {text}.")
         redraw = False
     else:
         await query.answer("Unknown option.")
