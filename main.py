@@ -3,6 +3,7 @@ import functools
 import io
 import json
 import logging
+import random
 import subprocess
 import tempfile
 import traceback
@@ -687,35 +688,38 @@ async def check_inactive_users():
             last_message_time = datetime.fromtimestamp(user_data['last_message_time'])
             if datetime.now() - last_message_time > timedelta(hours=24):  # если прошло 24 часа
                 # генерируем сообщение
-                ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
-
-                await tgbot.dialog_append_raw(storage_id,
-                                              'Your next task is to motivate the user to continue the conversation. The user has not interacted with you for more than 24 hours.',
-                                              None, 'system')
-                user_data = await dp.storage.get_data(chat=storage_id)
                 user_data['last_message_time'] = datetime.now().timestamp()
-                try:
-                    msg = await dp.bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
-                    await dp.storage.set_data(chat=storage_id, data=user_data)
-                    history_for_openai = [{'role': 'system',
-                                           'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
-                                          ] + user_data['history']
-                    chat_response = await gpt_acreate(
-                        model="gpt-3.5-turbo-0613",
-                        messages=history_for_openai
-                    )
-                    response_text = chat_response['choices'][0]['message']['content']
+                await dp.storage.set_data(chat=storage_id, data=user_data)
+                if random.random()>0.7:
+                    ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
 
-                    # отправляем сообщение
+                    await tgbot.dialog_append_raw(storage_id,
+                                                  f'Your next task is to motivate the user to continue the conversation. The user has not interacted with you for more than {(datetime.now() - last_message_time).total_seconds()/60/60} hours.',
+                                                  None, 'system')
+                    user_data = await dp.storage.get_data(chat=storage_id)
 
-                    logging.info(f'sended {response_text} to {storage_id}')
-                    msg = await msg.edit_text(text=response_text)
-                    await tgbot.dialog_append(msg, response_text, config.Role_ASSISTANT)
-                except (BotKicked, BotBlocked):
-                    # Бот был исключён из чата, удаляем данные о чате
-                    await dp.storage.reset_data(chat=storage_id)
-                except:
-                    traceback.print_exc()
+                    try:
+                        msg = await dp.bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
+
+                        history_for_openai = [{'role': 'system',
+                                               'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                              ] + user_data['history']
+                        chat_response = await gpt_acreate(
+                            model="gpt-3.5-turbo-0613",
+                            messages=history_for_openai
+                        )
+                        response_text = chat_response['choices'][0]['message']['content']
+
+                        # отправляем сообщение
+
+                        logging.info(f'sended {response_text} to {storage_id}')
+                        msg = await msg.edit_text(text=response_text)
+                        await tgbot.dialog_append(msg, response_text, config.Role_ASSISTANT)
+                    except (BotKicked, BotBlocked):
+                        # Бот был исключён из чата, удаляем данные о чате
+                        await dp.storage.reset_data(chat=storage_id)
+                    except:
+                        traceback.print_exc()
         await asyncio.sleep(3600)  # ждём час перед следующей проверкой
 
 

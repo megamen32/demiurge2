@@ -187,7 +187,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
     user_data, chat_id = await get_chat_data(query.message)
     command, id, text = query.data.split('_', 2)
     prompt = Prompt.get_by_id(id).text
-    redraw = False
+    redraw = True
     if text in Style.__members__ or text in [MIDJOURNEY, UNSTABILITY]:
         user_data['style'] = text
         await query.answer(f"Set style to {text}.")
@@ -256,7 +256,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             asyncio.create_task(msg.edit_text(new_text))
         img_file, url = await gen_img(prompt, ratio, style)
         if img_file is None:
-            raise Exception("500 server iname generator error ")
+            raise Exception("500 server image generator error ")
 
 
         photo = None
@@ -286,7 +286,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
     except Exception as e:
         traceback.print_exc()
         await bot.send_message(chat_id=chat_id,text= f"An error occurred while generating the image. {e}",reply_to_message_id=reply_to_id)
-        di= {'prompt': prompt, 'style': style, 'image generated without exception':traceback.format_exc(0,False)}
+        di= {'prompt': prompt, 'style': style.name  if isinstance(style,Style) else style, 'image generated without exception':traceback.format_exc(0,False)}
         await tgbot.dialog_append(msg, json.dumps(di, ensure_ascii=False), 'function', name='draw')
     finally:
         await msg.delete()
