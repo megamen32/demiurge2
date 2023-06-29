@@ -587,7 +587,7 @@ async def process_function_call(function_name, function_args, message, step=0):
     else:
         raise Exception(f"There is no {function_name} funciton")
     if response_text is not None and not isinstance(response_text,str):
-        response_text = json.dumps(response_text, ensure_ascii=False)
+        response_text = json.dumps(response_text, ensure_ascii=False,default=str)
     return response_text, process_next
 
 async def wait_and_process_messages(chat_id, message, user_data, role):
