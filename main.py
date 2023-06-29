@@ -316,11 +316,8 @@ async def recognize(file_id, ext='.ogg'):
             task = asyncio.create_task(recognize_chunk(file_id, i, chunk))
             tasks.append(task)
 
-        # Ждем завершения всех асинхронных задач
-        text = ''
-        for task in asyncio.as_completed(tasks):
-            result = await task
-            text += result
+        results = await asyncio.gather(*tasks)
+        text = ''.join(results)
 
     os.remove(f'{file_id}{ext}')
     os.remove(f'{file_id}.wav')
