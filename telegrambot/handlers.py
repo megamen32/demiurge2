@@ -1,4 +1,5 @@
 import logging
+import pprint
 from datetime import datetime
 
 from aiogram import types, Bot, Dispatcher
@@ -22,6 +23,7 @@ class MessageLoggingMiddleware(BaseMiddleware):
 
 
         await tgbot.dialog_append(message,message.text)
+        print(pprint.pprint(message))
         # Продолжаем обработку следующими middleware и обработчиками
 
 

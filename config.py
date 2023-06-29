@@ -5,7 +5,7 @@ from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from decouple import config
 import openai
 
-from Imaginepy.imaginepy import Ratio
+from imaginepy import Ratio
 
 TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN')
 CHATGPT_API_KEY = config('CHATGPT_API_KEY')
@@ -54,8 +54,8 @@ def get_first_word(string):
 
 def get_styles():
     # Ваш код, который возвращает список из 70 стилей
-    from Imaginepy.imaginepy import Style
-    styles = ['IMAGINE_V4_Beta','V4_CREATIVE','ANIME_V2','NEO_FAUVISM','NEON','SURREALISM','LOGO','CYBERPUNK','LANDSCAPE','ARCHITECTURE','RENDER','VIBRANT','MYSTICAL','CINEMATIC_RENDER','ILLUSTRATION','KAWAII_CHIBI','PRODUCT_PHOTOGRAPHY','CHROMATIC','PAINTING']
+    from imaginepy import Style
+    styles = []#['IMAGINE_V4_Beta','V4_CREATIVE','ANIME_V2','NEO_FAUVISM','NEON','SURREALISM','LOGO','CYBERPUNK','LANDSCAPE','ARCHITECTURE','RENDER','VIBRANT','MYSTICAL','CINEMATIC_RENDER','ILLUSTRATION','KAWAII_CHIBI','PRODUCT_PHOTOGRAPHY','CHROMATIC','PAINTING']
     # Добавление стиля 'MIDJOURNEY', если он не включен в список
     if 'MIDJOURNEY' not in styles:
         styles.append('MIDJOURNEY')

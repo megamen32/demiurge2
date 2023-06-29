@@ -11,9 +11,9 @@ from aiogram.types import InlineKeyboardButton
 
 import config
 import tgbot
-from Imaginepy.imaginepy import Imagine, AsyncImagine
+from imaginepy import Imagine, AsyncImagine
 
-from Imaginepy.imaginepy import Imagine, Style, Ratio
+from imaginepy import Imagine, Style, Ratio
 import asyncio
 import io
 from aiogram import types

@@ -18,6 +18,7 @@ import openai
 # Установите ваши токены здесь
 from aiogram.types import BotCommand
 import speech_recognition as sr
+from pydub import AudioSegment
 
 import config
 import gpt
@@ -166,10 +167,19 @@ async def handle_voice(message: types.Message):
         # Скачайте аудиофайл
         await bot.download_file(file_path, destination=f"{file_id}.ogg")
 
-        text = await asyncio.get_running_loop().run_in_executor(None, recognize, (file_id))
+        text = await recognize (file_id)
         message.text = text
         await dialog_append(message, message.text)
-        asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text}'))
+        asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text[:4000]}'))
+        await msg.edit_text(f'Вы сказали:\n{text[:4000]}')
+
+        if len(text) > 4000:
+            # Отправляем остальную часть длинного текста в отдельных сообщениях
+            remaining_text = text[4000:]
+            while remaining_text:
+                chunk = remaining_text[:4000]
+                remaining_text = remaining_text[4000:]
+                await message.reply(chunk)
         return await handle_message(message)
     except:
         traceback.print_exc()
@@ -230,7 +240,7 @@ async def handle_video(message: types.Message):
         # Скачайте аудиофайл
         await bot.download_file(file_path, destination=f"{file_id}.{ext}")
 
-        text = await asyncio.get_running_loop().run_in_executor(None, recognize, file_id, f'.{ext}')
+        text = await recognize(file_id, f'.{ext}')
 
         await tgbot.dialog_append(message, text)
         asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text}'))
@@ -241,29 +251,88 @@ async def handle_video(message: types.Message):
 
 
 speech_model = None
+def split_audio(audio_file, chunk_duration):
+    # Разбивает аудиофайл на чанки указанной длительности и возвращает список файлов чанков
+
+    # Создание директории для временных файлов
+    temp_dir = "temp_audio_chunks"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Получение общей длительности аудиофайла
+    audio_duration = get_audio_duration(audio_file)
+
+    # Расчет количества чанков и длительности каждого чанка
+    num_chunks = math.ceil(audio_duration / chunk_duration)
+    chunk_duration_secs = chunk_duration * 1000  # Преобразование в миллисекунды
+
+    chunk_files = []
+    for i in range(num_chunks):
+        # Вычисление времени начала и окончания текущего чанка
+        start_time = i * chunk_duration_secs
+        end_time = min((i + 1) * chunk_duration_secs, audio_duration)
+
+        # Извлечение текущего чанка с использованием ffmpeg
+        chunk_file = f"{temp_dir}/chunk_{i}.wav"
+        os.system(f"ffmpeg -ss {start_time / 1000} -t {(end_time - start_time) / 1000} -i {audio_file} -c copy {chunk_file}")
+
+        chunk_files.append(chunk_file)
+
+    return chunk_files
 
 
-def recognize(file_id, ext='.ogg'):
+def get_audio_duration(audio_file):
+    # Получает длительность аудиофайла в миллисекундах
+
+    duration_output = os.popen(f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_file}").read()
+    duration_secs = float(duration_output)
+    duration_ms = duration_secs * 1000
+
+    return duration_ms
+
+async def recognize_chunk(file_id, chunk_index, chunk):
+    chunk.export(f'{file_id}_chunk{chunk_index}.wav', format='wav')
+    audio_file = open(f'{file_id}_chunk{chunk_index}.wav', "rb")
+    response = await openai.Audio.atranscribe("whisper-1", audio_file)
+    os.remove(f'{file_id}_chunk{chunk_index}.wav')
+    return response['text']
+
+async def recognize(file_id, ext='.ogg'):
     # Преобразование аудиофайла в формат WAV для распознавания речи
-    # Используйте SpeechRecognition для преобразования аудио в текст
+    # Используйте Whisper для преобразования аудио в текст
+    os.system(f'ffmpeg -i {file_id}{ext} {file_id}.wav')
 
-    if False:
-        global speech_model
-        if speech_model is None:
-            import whisper
-            speech_model = whisper.load_model("small")
-        result = speech_model.transcribe(f"{file_id}{ext}")
-        text = (result["text"])
+    if os.path.getsize(f'{file_id}.wav') <= 26214400:
+        # Размер файла меньше или равен максимальному размеру для Whisper
+        result = await openai.Audio.atranscribe('whisper-1', open(f"{file_id}.wav", 'rb'))
+        text = result["text"]
     else:
-        os.system(f'ffmpeg -i {file_id}{ext} {file_id}.wav')
-        audio_file = open(f'{file_id}.wav', "rb")
-        text = openai.Audio.transcribe("whisper-1", audio_file)['text']
-        os.remove(f'{file_id}.wav')
+        # Размер файла превышает максимальный размер для Whisper
+        audio = AudioSegment.from_file(f'{file_id}.wav')
+        chunk_size = 24000  # Размер каждого фрагмента аудио
+        chunks = len(audio) // chunk_size + 1
+        tasks = []
+        for i in range(chunks):
+            chunk = audio[i * chunk_size: (i + 1) * chunk_size]
+            task = asyncio.create_task(recognize_chunk(file_id, i, chunk))
+            tasks.append(task)
+
+        # Ждем завершения всех асинхронных задач
+        text = ''
+        for task in asyncio.as_completed(tasks):
+            result = await task
+            text += result
 
     os.remove(f'{file_id}{ext}')
+    os.remove(f'{file_id}.wav')
     return text
+def transcribe_chunk(chunk_file):
+    # Отправляет чанк аудиофайла в API OpenAI для распознавания и возвращает полученный текст
 
+    audio_file = open(chunk_file, "rb")
+    result = openai.Audio.transcribe("whisper-1", audio_file)
+    text = result['text']
 
+    return text
 def recognize_old(file_id):
     # Преобразование аудиофайла в формат WAV для распознавания речи
     os.system(f"ffmpeg -i {file_id}.ogg {file_id}.wav")
