@@ -48,6 +48,7 @@ async def gen_img(prompt, ratio, style):
                     continue
                 break
             except:
+                traceback.print_exc()
                 continue
         return img_data, None
     else:

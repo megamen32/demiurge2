@@ -45,7 +45,7 @@ def trim_message_to_tokens(message, max_tokens):
 
 async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
-    if config.USE_API and params['model']!='gpt-4':
+    if config.USE_API:
         while True:
             async with rate_limiter:
                 try:

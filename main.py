@@ -756,12 +756,11 @@ async def check_inactive_users():
                 # генерируем сообщение
                 user_data['last_message_time'] = datetime.now().timestamp()
                 await dp.storage.set_data(chat=storage_id, data=user_data)
-                if random.random()>0.7:
+                if random.random()>0.9:
                     ASSISTANT_NAME = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)
 
                     await tgbot.dialog_append_raw(storage_id,
-                                                  f'Your next task is to motivate the user to continue the conversation. The user has not interacted with you for more than {(datetime.now() - last_message_time).total_seconds()/60/60} hours.',
-                                                  None, 'system')
+                                                  f'Ваша следующая задача - мотивировать пользователя продолжить разговор. Пользователь не взаимодействовал с вами уже более {(datetime.now() - last_message_time).total_seconds()/60/60} часов.',None, 'system')
                     user_data = await dp.storage.get_data(chat=storage_id)
 
                     try:
