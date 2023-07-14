@@ -30,42 +30,24 @@ imagine = None
 
 
 async def gen_img(prompt, ratio, style):
-    if isinstance(style, Style):
-        global imagine
-        if imagine is None:
-            imagine = AsyncImagine()
-        i = 0
-        while i < 2:
-            i += 1
-            img_data_task = asyncio.create_task(imagine.sdprem(
-                prompt=prompt,
-                style=style,
-                ratio=ratio
-            ))
-            try:
-                img_data = await asyncio.wait_for(img_data_task, timeout=30)
-                if img_data is None:
-                    continue
-                break
-            except:
-                traceback.print_exc()
-                continue
-        return img_data, None
-    else:
-        if style == MIDJOURNEY:
-            from imagine import generate_image_midjourney
-            ratio_str = ratio.name.lower().replace('ratio_', '').replace('x',':')
+    if isinstance(style, Style) and 'style' not in prompt:
+        prompt+=f". In style '{style.name.lower().replace('_',' ')}'. "
+        style=MIDJOURNEY
 
-            # Подготовка сообщения для Midjourney
-            prompt += f' --ar {ratio_str}'
-            img_data, img_url = await generate_image_midjourney(prompt)
+    if style == MIDJOURNEY:
+        from imagine import generate_image_midjourney
+        ratio_str = ratio.name.lower().replace('ratio_', '').replace('x',':')
 
-            return img_data, img_url
-        elif style == UNSTABILITY:
-            from imagine import agenerate_image_stability
+        # Подготовка сообщения для Midjourney
+        prompt += f' --ar {ratio_str}'
+        img_data, img_url = await generate_image_midjourney(prompt)
 
-            imd_data = await agenerate_image_stability(prompt, style)
-            return imd_data[0], None
+        return img_data, img_url,style
+    elif style == UNSTABILITY:
+        from imagine import agenerate_image_stability
+
+        imd_data = await agenerate_image_stability(prompt, style)
+        return imd_data[0], None,style
 
 
 async def upscale_image_imagine(img_data):
@@ -228,6 +210,21 @@ def translate_promt(prompt):
     translation = translator.translate(prompt)
     return translation
 
+async def progress_bar(text, msg, timeout=60):
+    bar_length = 10
+    SLEEP_TIME = timeout // bar_length
+    for i in range(bar_length):
+        progress = (i % bar_length) + 1
+        bar_str = ['⬜']*bar_length
+        bar_str[:progress] = ['⬛']*progress
+        await msg.edit_text(f'{text}\n' + ''.join(bar_str))
+        await asyncio.sleep(SLEEP_TIME)
+    # Fill the bar when the task is done
+    bar_str = ['⬛']*bar_length
+    await msg.edit_text(f'{text}\n' + ''.join(bar_str))
+
+
+
 
 async def draw_and_answer(prompt, chat_id, reply_to_id):
     user_data, user_id = await get_storage_from_chat(chat_id, reply_to_id)
@@ -253,9 +250,8 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             prompt = await improve_prompt(prompt, chat_id)
 
         new_text = f"Finishing image... {style}\n{ratio} \n{prompt}"
-        if new_text!=msg.text:
-            asyncio.create_task(msg.edit_text(new_text))
-        img_file, url = await gen_img(prompt, ratio, style)
+        asyncio.create_task(progress_bar(new_text,msg))
+        img_file, url,style = await gen_img(prompt, ratio, style)
         if img_file is None:
             raise Exception("500 server image generator error ")
 
