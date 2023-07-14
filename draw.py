@@ -251,6 +251,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
 
         new_text = f"Finishing image... {style}\n{ratio} \n{prompt}"
         asyncio.create_task(progress_bar(new_text,msg))
+        old_style=style
         img_file, url,style = await gen_img(prompt, ratio, style)
         if img_file is None:
             raise Exception("500 server image generator error ")
@@ -270,7 +271,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
                     range(4)]
             kb.row(*btns)
         photo2 = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file),
-                                      caption=f'{prompt}\n{style}\n{ratio}', reply_markup=kb,
+                                      caption=f'{prompt}\n{old_style}\n{ratio}', reply_markup=kb,
                                       reply_to_message_id=reply_to_id)
         if photo is not None:
             await photo.delete()
