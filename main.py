@@ -116,10 +116,10 @@ async def show_history(message):
     # Отправляем сообщение
 
     try:
-        await message.reply(text=text, reply_markup=kb, parse_mode='Markdown')
+        await bot.send_message(chat_id=message.chat.id,reply_to_message_id=message.message_id,text=text, reply_markup=kb, parse_mode='Markdown',ignore=True)
     except:
         try:
-            await message.reply(text=text, reply_markup=kb)
+            await bot.send_message(chat_id=message.chat.id,reply_to_message_id=message.message_id,text=text, reply_markup=kb,ignore=True)
         except:
             traceback.print_exc()
             await message.reply('Не удалось получить ответ от Демиурга')
@@ -465,12 +465,8 @@ async def toggle_function_mode(callback_query: types.CallbackQuery):
     functions_info = "\n\n".join(
         [f'{func["name"]}: {func["description"]}' for func in config.functions])
     # Обновление клавиатуры с кнопками
-    await bot.edit_message_text(
-        functions_info,
-        chat_id=chat_id,
-        message_id=callback_query.message.message_id,
-        reply_markup=InlineKeyboardMarkup().add(*btn)
-    )
+    await bot.edit_message_text(functions_info, chat_id=chat_id, message_id=callback_query.message.message_id,
+                                reply_markup=InlineKeyboardMarkup().add(*btn))
 
 
     # Ответить на callback_query, чтобы убрать кружок загрузки на кнопке
@@ -810,15 +806,18 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
 
                 else:
                     response_text = chat_response['choices'][0]['message']['content']#.replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}:",'').replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)} :",'').replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}",'')
-                    user_data, chat_id = await dialog_append(message, response_text, role=config.Role_ASSISTANT)
+
 
                 break
 
         asyncio.create_task(do_short_dialog(chat_id, user_data))
         if response_text:
             asyncio.create_task( send_response_text(msg, response_text))
-    except CancelledError:await msg.delete()
+    except CancelledError:
+        cancel_event.set()
+        await msg.delete()
     except:
+        cancel_event.set()
         traceback.print_exc()
         await msg.edit_text(msg.text+'\n'+traceback.format_exc())
 

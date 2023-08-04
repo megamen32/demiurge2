@@ -212,7 +212,7 @@ def translate_promt(prompt):
     return translation
 
 
-async def progress_bar(text, msg, timeout=60, cancel: asyncio.Event = None):
+async def progress_bar(text, msg:types.Message, timeout=60, cancel: asyncio.Event = None):
     bar_length = 10
     sleep_time = timeout // bar_length
     last_typing_time = 0
@@ -233,7 +233,7 @@ async def progress_bar(text, msg, timeout=60, cancel: asyncio.Event = None):
 
         current_time = time.time()
         if current_time - last_typing_time >= 5:  # Проверяем, прошло ли 5 секунд с последнего отправления "typing"
-            await bot.send_chat_action(chat_id=msg.chat.id, action='TYPING')
+            await bot.send_chat_action(chat_id=msg.chat.id,message_thread_id=msg.message_thread_id, action='TYPING')
             last_typing_time = current_time  # Обновляем время последнего отправления "typing"
 
         await asyncio.sleep(sleep_time)

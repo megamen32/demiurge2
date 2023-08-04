@@ -52,7 +52,8 @@ async def agpt(**params):
                     config.set_random_api_key()
                     # Ограничьте историю MAX_HISTORY сообщениями
                     trim(params)
-                    params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item else {})} for item in params['messages']]
+                    params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
+                    params['messages']=[msg for msg in params['messages'] if msg['content']]
                     result = await openai.ChatCompletion.acreate(**params)
                     return result
                 except RateLimitError as error:

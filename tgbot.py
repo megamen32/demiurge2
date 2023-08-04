@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import types
 
 from config import dp, Role_SYSTEM, Role_USER, Role_ASSISTANT, ASSISTANT_NAME_SHORT
@@ -32,9 +34,34 @@ async def dialog_append(message:types.Message, text:str=None,role='user', **para
 
     return await dialog_append_raw(message.chat.id, content,message.message_thread_id,role ,message_id=message.message_id, **params)
 
+async def dialog_edit(chat_id,message_id ,text,thread_id=None, **params):
+    if text is None:
+        logging.error('why changing to none?')
+        return None,None
+    # Получить соответствующее хранилище данных пользователя
+    user_data, storage_id = await get_storage_from_chat(chat_id,thread_id)
 
+    # Получить историю диалога
+    dialog_history = user_data.get('history', [])
+
+    # Найти сообщение для редактирования
+    for i, dialog_message in enumerate(dialog_history):
+        if dialog_message.get('message_id') == message_id:
+            # Обновить содержимое сообщения
+            dialog_message['content'] = text
+            # Обновить историю диалога
+            user_data['history'][i] = dialog_message
+            # Обновить хранилище данных пользователя
+            await dp.storage.set_data(chat=storage_id, data=user_data)
+            print(f"Edited a message to: {text}")
+            break
+
+    return user_data, storage_id
 async def dialog_append_raw(chat_id, response_text_, thread_id=None, role='user', **params):
     user_data, storage_id = await get_storage_from_chat(chat_id, thread_id)
+    if thread_id is not None:
+        # Делайте что-то с thread_id, например, добавить его в словарь params
+        params['thread_id'] = thread_id
     if 'history' not in user_data:
         user_data['history'] =[]
     user_data['history'].append(
