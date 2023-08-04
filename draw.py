@@ -1,6 +1,7 @@
 import json
 import random
 import re
+import time
 import traceback
 
 import langdetect
@@ -214,24 +215,31 @@ def translate_promt(prompt):
 async def progress_bar(text, msg, timeout=60, cancel: asyncio.Event = None):
     bar_length = 10
     sleep_time = timeout // bar_length
+    last_typing_time = 0
     emoji_sets = [  # Массив массивов эмодзи
         ["🟩", "🟨", "🟧", "🟦", "🟪", "🟥"],
-        ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣"],
         ["⭐️", "🌟", "🤩", "💫", "✨", "🌠"],
         ["❤️", "🧡", "💛", "💚", "💙", "💜"],
         ["🟠", "🟡", "🟢", "🔵", "🟣", "🔴"],
     ]
 
     bar_emoji = random.choice(emoji_sets)  # Выбираем набор эмодзи случайным образом
+    sybmov = random.choice(['⬜️', '  '])
     for i in range(bar_length):
         progress = (i % bar_length) + 1
-        bar_str = ['⬜️'] * bar_length
+
+        bar_str = [sybmov] * bar_length
         bar_str[:progress] = [bar_emoji[i // 2] for _ in range(progress)]  # меняем цвет бара по мере выполнения задачи
+
+        current_time = time.time()
+        if current_time - last_typing_time >= 5:  # Проверяем, прошло ли 5 секунд с последнего отправления "typing"
+            await bot.send_chat_action(chat_id=msg.chat.id, action='TYPING')
+            last_typing_time = current_time  # Обновляем время последнего отправления "typing"
+
         await asyncio.sleep(sleep_time)
         if cancel and cancel.is_set():  # Проверяем, установлен ли флаг отмены
             break
         await msg.edit_text(f'{text}\n' + ''.join(bar_str))
-
 async def draw_and_answer(prompt, chat_id, reply_to_id):
     user_data, user_id = await get_storage_from_chat(chat_id, reply_to_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
