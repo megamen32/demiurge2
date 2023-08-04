@@ -13,6 +13,7 @@ import traceback
 from datetime import datetime, timedelta
 from json import JSONDecodeError
 
+import aiogram.utils.exceptions
 from gtts import gTTS
 import os
 from aiogram import types, executor
@@ -526,6 +527,35 @@ async def handle_edited_message(message: types.Message):
         traceback.print_exc()
         await message.answer('Не удалось получить ответ от Демиурга')
 
+@dp.message_handler(commands=['send_all'])
+async def send_all(message: types.Message):
+    message_text = message.get_args()  # Получаем текст после команды /send_all
+    if not message_text:
+        # Если текста нет, отправляем сообщение об ошибке
+        await bot.send_message(message.chat.id, "Пожалуйста, предоставьте текст сообщения после команды /send_all")
+        return
+
+    r = redis.Redis(host='localhost', port=6379, db=0)
+    all_keys = r.keys("demiurge*")
+    markdown=True
+    for key in all_keys:
+        storage_id = key.decode("utf-8").split(":")[1]
+        chat_id, thread_id =  storage_to_chat_id(storage_id)
+        try:
+            if markdown:
+                try:
+                    await bot.send_message(chat_id=chat_id,reply_to_message_id=thread_id, text=message_text,parse_mode='Markdown')
+
+                except aiogram.utils.exceptions.CantParseEntities:
+                    markdown=False
+            if not markdown:
+                await bot.send_message(chat_id=chat_id, reply_to_message_id=thread_id,text=message_text)
+        except (BotKicked, BotBlocked):
+            # Бот был исключён из чата, удаляем данные о чате
+            await dp.storage.reset_data(chat=storage_id)
+        except Exception as e:
+            # Обработка случая, если бот был исключен из чата или возникла другая ошибка
+            await message.answer(f"Failed to send a message to chat {chat_id}. Error: {e}")
 
 @dp.message_handler(commands=['count'])
 async def show_memory_info(message: types.Message):
