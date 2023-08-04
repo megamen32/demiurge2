@@ -47,6 +47,10 @@ async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
     if config.USE_API:
         while True:
+            if 'functions' in params and not params['functions']:
+                params['model'] = params['model'].replace('-0613', '')
+                params.pop('functions')
+                params.pop('function_call')
             async with rate_limiter[params['model']]:
                 try:
                     config.set_random_api_key()
@@ -54,6 +58,7 @@ async def agpt(**params):
                     trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
                     params['messages']=[msg for msg in params['messages'] if msg['content']]
+
                     result = await openai.ChatCompletion.acreate(**params)
                     return result
                 except RateLimitError as error:
