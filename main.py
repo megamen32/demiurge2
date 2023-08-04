@@ -681,10 +681,11 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
                 step+=1
                 user_data, chat_id = await get_chat_data(message)
                 functions=user_data.get('functions',config.functions)
+                start_text =  get_start_text(user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME))
                 chat_response = await gpt_acreate(
                     model="gpt-3.5-turbo-0613" if not user_data.get('gpt-4', config.useGPT4) else 'gpt-4-0613',
                     messages=[
-                                 {'role': 'system', 'content': f"You are pretending to answer like a character from the following description: {user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}"},
+                                 {'role': 'system', 'content': start_text},
                              ] + user_data['history'],
                     functions=functions,
                     function_call="auto",
@@ -699,7 +700,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
                         response_text=traceback.format_exc(0,False)
                         process_next=False
 
-                    formatted_function_call =function_call["arguments"].replace('"""','').replace('\n','\n')
+                    formatted_function_call =function_call["arguments"]
                     if process_next:
                         message.text = response_text
                         role = config.Role_ASSISTANT
@@ -714,7 +715,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
 
 
                 else:
-                    response_text = chat_response['choices'][0]['message']['content'].split(":", 1)[1].strip() if ":" in chat_response['choices'][0]['message']['content'] else chat_response['choices'][0]['message']['content']
+                    response_text = chat_response['choices'][0]['message']['content']#.replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}:",'').replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)} :",'').replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}",'')
                     user_data, chat_id = await dialog_append(message, response_text, role=config.Role_ASSISTANT)
 
                 break
@@ -728,17 +729,25 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
         await msg.edit_text(msg.text+'\n'+traceback.format_exc())
 
 
+def get_start_text(character):
+    start_text = f"You are a telegram bot responding in Markdown format. Your role is based on the following description: '{character}'. In any situation, you must act and respond strictly in accordance with the image of your character!"
+    return start_text
+
+
 async def send_response_text(msg, response_text):
     if response_text:
-        try:
+        parse_modes = ['Markdown', None]
+
+        for mode in parse_modes:
             try:
-                await msg.edit_text(response_text[:4096],parse_mode='MARKDOWN')
-            except:
-                await msg.edit_text(response_text[:4096])
-            if config.TTS:
-                asyncio.create_task(send_tts(msg, response_text))
-        except:
-            traceback.print_exc()
+                # Если parse_mode = None, параметр parse_mode не будет передан
+                await msg.edit_text(response_text[:4096], parse_mode=mode)
+                if config.TTS:
+                    asyncio.create_task(send_tts(msg, response_text))
+                break  # если сообщение было успешно отправлено, прекратить перебор
+            except Exception as e:
+                traceback.print_exc()
+                continue
     else:
         await msg.delete()
 
@@ -853,7 +862,7 @@ async def check_inactive_users():
                         msg = await dp.bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
 
                         history_for_openai = [{'role': 'system',
-                                               'content': f'You are pretending to answer like a character from the following description: {ASSISTANT_NAME}'},
+                                               'content': get_start_text(ASSISTANT_NAME)},
                                               ] + user_data['history']
                         chat_response = await gpt_acreate(
                             model="gpt-3.5-turbo-0613",

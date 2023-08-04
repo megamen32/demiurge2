@@ -12,7 +12,7 @@ from openai.error import RateLimitError
 
 import config
 request_queue = asyncio.Queue()
-MAX_TOKENS = defaultdict(lambda: 4097, {'gpt-3.5-turbo-0613':4182-364,'gpt-3.5-turbo-16k':16384,'gpt-4':16384,'gpt-4-0613':16384-364,'gpt-3.5-turbo':4097})
+MAX_TOKENS = defaultdict(lambda: 4097, {'gpt-3.5-turbo-0613':4182-364,'gpt-3.5-turbo-16k':16384,'gpt-4':8192,'gpt-4-0613':8192-364,'gpt-3.5-turbo':4097})
 async def process_queue():
     while True:
         task = await request_queue.get()
