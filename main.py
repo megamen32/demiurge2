@@ -674,7 +674,7 @@ async def process_function_call(function_name, function_args, message, step=0):
     try:
         function_args = json.loads(function_args)
     except JSONDecodeError:
-        function_args = {}
+        function_args = function_args
 
     if function_name == 'draw':
         image_description_ = function_args.get('image_description', '')
@@ -714,7 +714,10 @@ async def process_function_call(function_name, function_args, message, step=0):
         process_next = True
 
     elif function_name == 'execute_python_code' or function_name== 'python':
-        code = function_args.get('code', '')
+        if not isinstance(function_args,str):
+            code = function_args.get('code', function_args)
+        else:
+            code=function_args
         res = execute_python_code(code)
         response_text = {'code':code,'result':res}
     else:
