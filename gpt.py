@@ -12,7 +12,7 @@ from openai.error import RateLimitError
 
 import config
 request_queue = asyncio.Queue()
-MAX_TOKENS = defaultdict(lambda: 4097, {'gpt-3.5-turbo-0613':4182-364,'gpt-3.5-turbo-16k':16384,'gpt-4':16384,'gpt-3.5-turbo':4097})
+MAX_TOKENS = defaultdict(lambda: 4097, {'gpt-3.5-turbo-0613':4182-364,'gpt-3.5-turbo-16k':16384,'gpt-4':16384,'gpt-4-0613':16384-364,'gpt-3.5-turbo':4097})
 async def process_queue():
     while True:
         task = await request_queue.get()
@@ -29,7 +29,7 @@ async def process_queue():
 
 
 # Create a rate limiter that allows 3 operations per minute
-rate_limiter = AsyncLimiter(3, 60)
+rate_limiter =defaultdict(lambda :AsyncLimiter(3, 60))
 llm=None
 cur_token_index=0
 my_session_tokens = ['eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ik1UaEVOVUpHTkVNMVFURTRNMEZCTWpkQ05UZzVNRFUxUlRVd1FVSkRNRU13UmtGRVFrRXpSZyJ9.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL3Byb2ZpbGUiOnsiZW1haWwiOiJoZGhmYTEyNEByYW1ibGVyLnJ1IiwiZW1haWxfdmVyaWZpZWQiOnRydWV9LCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsidXNlcl9pZCI6InVzZXIta3ZrNzRJWGxzWkZxRVZzR3FhMnFwR0hYIn0sImlzcyI6Imh0dHBzOi8vYXV0aDAub3BlbmFpLmNvbS8iLCJzdWIiOiJhdXRoMHw2M2Y1MmYyOWY4M2JkODE2ZTg4NzQ2OGIiLCJhdWQiOlsiaHR0cHM6Ly9hcGkub3BlbmFpLmNvbS92MSIsImh0dHBzOi8vb3BlbmFpLm9wZW5haS5hdXRoMGFwcC5jb20vdXNlcmluZm8iXSwiaWF0IjoxNjg2MzEyODQ2LCJleHAiOjE2ODc1MjI0NDYsImF6cCI6IlRkSkljYmUxNldvVEh0Tjk1bnl5d2g1RTR5T282SXRHIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBtb2RlbC5yZWFkIG1vZGVsLnJlcXVlc3Qgb3JnYW5pemF0aW9uLnJlYWQgb3JnYW5pemF0aW9uLndyaXRlIn0.Rmwv55D2gNG--Kmm433y7mbJuVm2V2LNz0nU9bgs_6_JmBNvzZk_PBh7bCPBBrDQIGhlaxf1nqr_PhTKsCYqe7w2CJaSaFdK7_HEpLGIKSetrn4Bpl2BAholzd2dXtLq9B1vacgEwGoTjVyYOZyqLcV3poCXVq5wt8Pii9awDILRnJM3yEdeGys9r7vGOxQEFTlMGOBkpMwwC6hL7l5FQMLimK2ZMDadyyCNeFAOrhIM9Jk99toO_GaDoRPbkRkfEJeacDQ9mt3_ldYsr7VopkIDOjB_aLMdr-bpJzqSVu9cbRRmywr4lbk1YB-rvN3jZzTcQD97npc-088ROE98Aw']
@@ -47,23 +47,11 @@ async def agpt(**params):
     # Wait for permission from the rate limiter before proceeding
     if config.USE_API:
         while True:
-            async with rate_limiter:
+            async with rate_limiter[params['model']]:
                 try:
                     config.set_random_api_key()
                     # Ограничьте историю MAX_HISTORY сообщениями
-                    if count_tokens(params['messages']) > MAX_TOKENS[params['model']]:
-                        trimmed_messages = []
-                        for msg in params['messages'][::-1]:  # reverse the list
-                            msg_token_count = count_tokens([msg])
-                            if msg_token_count > MAX_TOKENS[params['model']] // 2:
-                                # Trim the message
-                                msg['content'] = trim_message_to_tokens(msg['content'], MAX_TOKENS[params['model']] // 2)
-                                msg_token_count = count_tokens([msg])
-                            if not trimmed_messages or (count_tokens(trimmed_messages) + msg_token_count <= MAX_TOKENS[params['model']]):
-                                trimmed_messages.append(msg)
-                            else:
-                                break
-                        params['messages'] = trimmed_messages[::-1]  # reverse back
+                    trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item else {})} for item in params['messages']]
                     result = await openai.ChatCompletion.acreate(**params)
                     return result
@@ -78,7 +66,7 @@ async def agpt(**params):
         from gpt4_openai import GPT4OpenAI
         global llm, cur_token_index
         if llm is None:
-            llm = [GPT4OpenAI(token=token, headless=True, model='gpt-3.5' if params['model']!='gpt=4'else 'gpt-4') for token in my_session_tokens]
+            llm = [GPT4OpenAI(token=token, headless=True, model='gpt-3.5' if params['model']!='gpt-4'else 'gpt-4') for token in my_session_tokens]
             # GPT3.5 will answer 8, while GPT4 should be smart enough to answer 10
         prompt = params['messages'][-1]['content']
         response = llm[cur_token_index](prompt)
@@ -87,6 +75,22 @@ async def agpt(**params):
         return result
     return result
 
+
+def trim(params):
+    if count_tokens(params['messages']) > MAX_TOKENS[params['model']]:
+        trimmed_messages = []
+        for msg in params['messages'][::-1]:  # reverse the list
+            msg_token_count = count_tokens([msg])
+            if msg_token_count > MAX_TOKENS[params['model']] // 2:
+                # Trim the message
+                msg['content'] = trim_message_to_tokens(msg['content'], MAX_TOKENS[params['model']] // 2)
+                msg_token_count = count_tokens([msg])
+            if not trimmed_messages or (
+                    count_tokens(trimmed_messages) + msg_token_count <= MAX_TOKENS[params['model']]):
+                trimmed_messages.append(msg)
+            else:
+                break
+        params['messages'] = trimmed_messages[::-1]  # reverse back
 
 
 async def gpt_acreate(**params):

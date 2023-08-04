@@ -3,6 +3,8 @@ import functools
 import io
 import json
 import logging
+import operator
+import pprint
 import random
 import subprocess
 import tempfile
@@ -342,6 +344,74 @@ def recognize_old(file_id):
     os.remove(f'{file_id}.wav')
     return text
 
+@dp.message_handler(commands=['func','functions'])
+async def switch_functions(message: types.Message):
+    # Получение данных пользователя
+    user_data, chat_id = await get_chat_data(message)
+
+    # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
+    functions_on = user_data.get('functions', config.functions)
+    function_names_on = list(map(operator.itemgetter('name'), functions_on))
+    functions_all = config.functions
+
+    names=[func['name'] for func in functions_all]
+    btn=[InlineKeyboardButton(f'{name} {"V" if name in function_names_on else "X"}',callback_data=f'togglefunc_{name}') for name in names]
+    kb=InlineKeyboardMarkup()
+    kb.add(*btn)
+    functions_info = "\n\n".join(
+        [f'{func["name"]}: {func["description"]}' for func in functions_all])
+
+    # Отправка сообщения пользователю об изменении режима
+    await message.reply(functions_info[:4096],reply_markup=kb)
+from aiogram import types
+
+# Ваш код с предыдущим обработчиком команды
+
+# Обработчик для нажатия на кнопку
+@dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('togglefunc_'))
+async def toggle_function_mode(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    # Получение имени функции из callback_data
+    function_name = callback_query.data.split('_',maxsplit=1)[1]
+
+    # Получение данных пользователя
+    user_data, chat_id = await get_chat_data(callback_query.message)
+
+    functions_on = user_data.get('functions', config.functions)
+
+    # Получение списка имен функций из functions_on
+    function_names_on = list(map(operator.itemgetter('name'), functions_on))
+
+    # Обработка переключения функции вкл/выкл
+    if function_name in function_names_on:
+        functions_on = [func for func in functions_on if func["name"] != function_name]
+    else:
+        # Найти объект функции в functions_all по имени и добавить его в functions_on
+        function = next((func for func in config.functions if func["name"] == function_name), None)
+        if function:
+            functions_on.append(function)
+    function_names_on = list(map(operator.itemgetter('name'), functions_on))
+
+    # Сохранение обновленного значения в данных пользователя
+    user_data['functions'] = functions_on
+    await dp.storage.set_data(chat=chat_id, data=user_data)
+
+    # Отправка сообщения пользователю об изменении режима
+    names = [func['name'] for func in config.functions]
+    btn = [InlineKeyboardButton(f'{name} {"V" if name in function_names_on else "X"}', callback_data=f'togglefunc_{name}') for name in names]
+    functions_info = "\n\n".join(
+        [f'{func["name"]}: {func["description"]}' for func in config.functions])
+    # Обновление клавиатуры с кнопками
+    await bot.edit_message_text(
+        functions_info,
+        chat_id=chat_id,
+        message_id=callback_query.message.message_id,
+        reply_markup=InlineKeyboardMarkup().add(*btn)
+    )
+
+
+    # Ответить на callback_query, чтобы убрать кружок загрузки на кнопке
+
 
 @dp.message_handler(commands=['gpt4'])
 async def switch_gpt4_mode(message: types.Message):
@@ -590,6 +660,7 @@ async def process_function_call(function_name, function_args, message, step=0):
         response_text = json.dumps(response_text, ensure_ascii=False,default=str)
     return response_text, process_next
 
+
 async def wait_and_process_messages(chat_id, message, user_data, role):
     global dialog_locks
     response_text=None
@@ -609,28 +680,36 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
             while step<3:
                 step+=1
                 user_data, chat_id = await get_chat_data(message)
+                functions=user_data.get('functions',config.functions)
                 chat_response = await gpt_acreate(
-                    model="gpt-3.5-turbo-0613" if not user_data.get('gpt-4', config.useGPT4) else 'gpt-4',
+                    model="gpt-3.5-turbo-0613" if not user_data.get('gpt-4', config.useGPT4) else 'gpt-4-0613',
                     messages=[
                                  {'role': 'system', 'content': f"You are pretending to answer like a character from the following description: {user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}"},
                              ] + user_data['history'],
-                    functions=config.functions,
+                    functions=functions,
                     function_call="auto",
                 )
 
                 if 'function_call' in chat_response['choices'][0]['message']:
                     function_call = chat_response['choices'][0]['message']['function_call']
-                    response_text, process_next = await process_function_call(function_call['name'],
+                    try:
+                        response_text, process_next = await process_function_call(function_call['name'],
                                                                               function_call['arguments'], message)
+                    except:
+                        response_text=traceback.format_exc(0,False)
+                        process_next=False
 
+                    formatted_function_call =function_call["arguments"].replace('"""','').replace('\n','\n')
                     if process_next:
                         message.text = response_text
                         role = config.Role_ASSISTANT
                         user_data, chat_id = await dialog_append(message, text=response_text, role='function',
                                                                  name=function_call['name'])
-                        await msg.edit_text(response_text[:4096])
+                        ans=f'{function_call["name"]}:{formatted_function_call} => \n{response_text}'
+                        await msg.edit_text(ans[:4096])
                         msg = await message.reply('...')
                         continue
+                    response_text=f'{function_call["name"]}:{formatted_function_call}) => \n{response_text}'
 
 
 
@@ -646,7 +725,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
     except CancelledError:await msg.delete()
     except:
         traceback.print_exc()
-        await msg.edit_text(traceback.format_exc())
+        await msg.edit_text(msg.text+'\n'+traceback.format_exc())
 
 
 async def send_response_text(msg, response_text):
@@ -663,8 +742,12 @@ async def send_response_text(msg, response_text):
 
 async def do_short_dialog(chat_id, user_data,force=False):
     global dialog_locks
-    MAX_MEMORY_SIZE = gpt.MAX_TOKENS['gpt-3.5-turbo-0613']*0.9
-    normal_MEMORY_SIZE = gpt.MAX_TOKENS['gpt-3.5-turbo-0613']*0.12
+
+    # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
+    use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
+    model = gpt.MAX_TOKENS['gpt-3.5-turbo-0613'] if not use_gpt_4 else gpt.MAX_TOKENS['gpt-4-0613']
+    MAX_MEMORY_SIZE = model * 0.95
+    normal_MEMORY_SIZE = model * 0.3
 
     lock = dialog_locks.get(chat_id, asyncio.Lock())
     dialog_locks[chat_id] = lock

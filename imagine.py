@@ -15,7 +15,7 @@ import tgbot
 import trends
 from config import dp
 from datebase import ImageMidjourney
-from draw import improve_prompt
+from draw import improve_prompt,progress_bar
 from gpt import shorten
 from tgbot import get_chat_data
 
@@ -46,16 +46,25 @@ async def upscale_image(file_name, number):
         "file_name": file_name,
         "number": number
     }
-
+    steps=0
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as resp:
-            if resp.status == 200:
-                print('Upscale successful!')
-                response_json = await resp.json()
-                upscaled_url = response_json["latest_image_url"]
-            else:
-                print(f'Upscale error: {resp.status}')
-                upscaled_url = None
+        while steps<6:
+            steps+=1
+            if steps != 1:
+                await asyncio.sleep(30)
+            async with session.get(url, params=params) as resp:
+                if resp.status == 200:
+
+                    response_json = await resp.json()
+                    if 'error' in response_json:
+                        continue
+                    upscaled_url = response_json["latest_image_url"]
+                    print('Upscale successful!')
+                    break
+                else:
+                    print(f'Upscale error: {resp.status}')
+                    upscaled_url = None
+
 
     if upscaled_url:
         async with aiohttp.ClientSession() as session:
@@ -111,6 +120,7 @@ async def handle_draw_callback(query: types.CallbackQuery):
     img_db = ImageMidjourney.get(id=img_id)
     await query.answer(f'... upscaling {number}')
     msg = await query.message.reply(f'... upscaling {img_db.prompt} {number}')
+    asyncio.create_task(progress_bar(f'Upscaling #{number} {img_db.prompt}',msg))
     if img_db:
         img_data=None
         try:

@@ -212,17 +212,16 @@ def translate_promt(prompt):
 
 async def progress_bar(text, msg, timeout=60):
     bar_length = 10
-    SLEEP_TIME = timeout // bar_length
+    sleep_time = timeout // bar_length
+    bar_emoji = [  "🟩","🟨", "🟧", "🟦", "🟪","🟥"]  # массив эмодзи для прогресс-бара
     for i in range(bar_length):
         progress = (i % bar_length) + 1
-        bar_str = ['⬜']*bar_length
-        bar_str[:progress] = ['⬛']*progress
+        bar_str = ['⬜️']*bar_length
+        bar_str[:progress] = [bar_emoji[i//2] for _ in range(progress)]  # меняем цвет бара по мере выполнения задачи
         await msg.edit_text(f'{text}\n' + ''.join(bar_str))
-        await asyncio.sleep(SLEEP_TIME)
+        await asyncio.sleep(sleep_time)
     # Fill the bar when the task is done
-    bar_str = ['⬛']*bar_length
-    await msg.edit_text(f'{text}\n' + ''.join(bar_str))
-
+    await msg.edit_text(f'{text}\n' + ''.join([bar_emoji[-1]]*bar_length))  # выставляем последний цвет из массима эмодзи как окончательный
 
 
 
@@ -269,7 +268,8 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
 
             btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in
                     range(4)]
-            kb.row(*btns)
+            kb.row(*btns[:2])
+            kb.row(*btns[-2:])
         photo2 = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file),
                                       caption=f'{prompt}\n{old_style}\n{ratio}', reply_markup=kb,
                                       reply_to_message_id=reply_to_id)

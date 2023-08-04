@@ -188,7 +188,7 @@ def fetch_image(promtp='котик фури',style='photo'):
         images = response.json()['results']
 
         # Получаем URL всех загруженных изображений
-        new_urls = {image['images'][0]['original'] for image in images}
+        new_urls = {image['images'][0]['original'] for image in images if image['images']}
 
         # Получаем URL всех старых изображений
         old_urls = {elem.url for elem in  ImageUnstability.select(ImageUnstability.url)}

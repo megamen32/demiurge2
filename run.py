@@ -15,6 +15,8 @@ async def on_startup_disp(dp):
     asyncio.create_task(check_inactive_users())
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
+        BotCommand("gpt4", "turn gpt4 on or off"),
+        BotCommand("functions", "change plugins that turned on or off"),
         BotCommand("summarize", "Суммировать историю диалога"),
         BotCommand("clear", "Clear историю диалога"),
         BotCommand("prompt", "Edit gpt start prompt"),
