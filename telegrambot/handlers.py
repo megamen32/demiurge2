@@ -21,8 +21,8 @@ class MessageLoggingMiddleware(BaseMiddleware):
             message.text = f'{message.text} (this message is in response to "{from_}" who said: {message.reply_to_message.text or message.reply_to_message.caption})'
 
 
-
-        await tgbot.dialog_append(message,message.text)
+        if  message.text:
+            await tgbot.dialog_append(message,message.text)
         print(pprint.pprint(message))
         # Продолжаем обработку следующими middleware и обработчиками
 

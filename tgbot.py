@@ -25,7 +25,7 @@ async def dialog_append(message:types.Message, text:str=None,role='user', **para
     if content is None:
         content=message.text
     if role==Role_USER:
-        content = f'{message.from_user.full_name or message.from_user.username}:{content}'
+        content = f'{message.from_user.full_name or message.from_user.username}: {content}'
     #if role==Role_ASSISTANT:
         #user_data, storage_id = await get_storage_from_chat(message.chat.id,message.message_thread_id)
         #content = f"{user_data.get('ASSISTANT_NAME_SHORT', ASSISTANT_NAME_SHORT)}:{content}"

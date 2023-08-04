@@ -7,6 +7,8 @@ import openai
 
 from imaginepy import Ratio
 
+from loggerbot import LoggingBot
+
 TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN')
 CHATGPT_API_KEY = config('CHATGPT_API_KEY')
 CHATGPT_API_KEY2 = config('CHATGPT_API_KEY2')
@@ -15,7 +17,7 @@ def set_random_api_key():
 set_random_api_key()
 
 # Создайте экземпляры бота и диспетчера
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
+bot = LoggingBot(token=TELEGRAM_BOT_TOKEN)
 storage = RedisStorage2(prefix='demiurge')
 dp = Dispatcher(bot, storage=storage)
 useGPT4=False

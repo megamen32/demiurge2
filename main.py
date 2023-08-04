@@ -135,7 +135,7 @@ async def get_history(message):
             if msg['role'] == config.Role_SYSTEM:
                 role = 'Система: '
             elif msg['role'] == config.Role_ASSISTANT:
-                role = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
+                role = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)+': '
             else:
                 role = ""
             history_text += f'{role}{msg["content"]}\n'
@@ -273,7 +273,48 @@ async def handle_video(message: types.Message):
         traceback.print_exc()
         await msg.edit_text('Не удалось получить ответ от Демиурга')
 
+from gensim.models import KeyedVectors
+from tqdm import tqdm
 
+lazy_model=None
+@dp.message_handler(commands=['calc'])
+async def handle_message(message: types.Message):
+    global lazy_model
+    try:
+        msg=await message.answer('...')
+        cmd,txt = message.get_full_command()
+        words=re.split('\+|-| ', message.get_args())
+        result_words = []
+        operators = {'+', '-'}
+        current_op = '+'
+        current_word = None
+        if lazy_model is None:
+            lazy_model =await asyncio.get_running_loop().run_in_executor(None,lambda :KeyedVectors.load_word2vec_format('GoogleNews-vectors-negative300.bin', binary=True))
+
+        pbar = tqdm(total=len(words), desc='Processing words', dynamic_ncols=True)
+
+        for word in words:
+            pbar.update()
+            if word in operators:
+                current_op = word
+            elif current_word is None:
+                current_word = word
+            else:
+                if current_op == '+':
+                    similar_word = lazy_model.most_similar(positive=[current_word, word])[0]
+                else:
+                    similar_word = lazy_model.most_similar(positive=[current_word], negative=[word])[0]
+                result_words.append(similar_word[0])
+                current_word = None
+        pbar.close()
+
+        if current_word is not None:
+            result_words.append(current_word)
+
+        await msg.edit_text( ' '.join(result_words))
+    except:
+        traceback.print_exc()
+        await msg.edit_text(traceback.format_exc())
 speech_model = None
 def split_audio(audio_file, chunk_duration):
     # Разбивает аудиофайл на чанки указанной длительности и возвращает список файлов чанков
@@ -681,6 +722,7 @@ async def process_function_call(function_name, function_args, message, step=0):
     if response_text is not None and not isinstance(response_text,str):
         response_text = json.dumps(response_text, ensure_ascii=False,default=str)
     return response_text, process_next
+
 
 
 async def wait_and_process_messages(chat_id, message, user_data, role):
