@@ -900,7 +900,7 @@ async def do_short_dialog(chat_id, user_data,force=False):
         if summary:
             chat_id,thread_id=storage_to_chat_id(chat_id)
             try:
-                await bot.send_message(chat_id=chat_id,text=f"Summary :{summary}"[:4096],reply_to_message_id=thread_id)
+                await bot.send_message(chat_id=chat_id,text=f"Summary :{summary}"[:4096],reply_to_message_id=thread_id,ignore=True)
             except:
                 traceback.print_exc()
         return summary
