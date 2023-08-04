@@ -278,7 +278,7 @@ from tqdm import tqdm
 
 lazy_model=None
 @dp.message_handler(commands=['calc'])
-async def handle_message(message: types.Message):
+async def handle_calc(message: types.Message):
     global lazy_model
     try:
         msg=await message.answer('...')
@@ -507,7 +507,10 @@ async def handle_edited_message(message: types.Message):
             msg_id = None
             for msg in reversed(user_data['history']):
                 if msg['role'] == 'user' and 'message_id' in msg and msg['message_id'] == message.message_id:
-                    msg_id = user_data['history'].index(msg)
+                    msg_id=j = user_data['history'].index(msg)
+                    while user_data['history'][j]['role']!= config.Role_ASSISTANT and j<len(user_data['history']) :
+                        j+=1
+                    old=user_data['history'][j]
                     break
             user_data['history'] = user_data['history'][:msg_id]
             await dp.storage.set_data(chat=chat_id, data=user_data)
@@ -515,7 +518,8 @@ async def handle_edited_message(message: types.Message):
             traceback.print_exc()
 
         await dialog_append(message, message.text)
-        await handle_message(message)
+        nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}',ignore=True)
+        await handle_message(nmsg,edit=True)
 
 
     except:
@@ -622,7 +626,7 @@ processing_tasks = {}
 
 
 @dp.message_handler(content_types=types.ContentType.TEXT)
-async def handle_message(message: types.Message, role='user'):
+async def handle_message(message: types.Message, role='user',edit=False):
     user_data, chat_id = await get_chat_data(message)
 
     # Получите текущую задачу обработки для этого пользователя (если есть)
@@ -637,7 +641,7 @@ async def handle_message(message: types.Message, role='user'):
             pass
 
     # Запуск новой задачи обработки с задержкой
-    processing_task = asyncio.create_task(wait_and_process_messages(chat_id, message, user_data, role))
+    processing_task = asyncio.create_task(wait_and_process_messages(chat_id, message, user_data, role,edit=edit))
     processing_tasks[chat_id] = processing_task
 
 
@@ -721,13 +725,13 @@ async def process_function_call(function_name, function_args, message, step=0):
 
 
 
-async def wait_and_process_messages(chat_id, message, user_data, role):
+async def wait_and_process_messages(chat_id, message, user_data, role,edit=False):
     global dialog_locks
     response_text=None
     cancel_event=asyncio.Event()
     while True:
         try:
-            msg = await message.reply('...')
+            msg = await message.reply('...') if not edit else message
 
 
             break
