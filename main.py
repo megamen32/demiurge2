@@ -3,6 +3,7 @@ import functools
 import io
 import json
 import logging
+import math
 import operator
 import pprint
 import random
@@ -72,41 +73,57 @@ async def process_callback_history_button(callback_query: types.CallbackQuery):
 
     text = await get_history(callback_query.message)
 
-    # Часть истории, которую нужно показать
-    text_to_show = text[start:end]
+
+
+    text,kb=format_history(text,start, end)
+
+    await bot.edit_message_text(text=text, chat_id=callback_query.message.chat.id,
+                                message_id=callback_query.message.message_id, reply_markup=kb)
+
+
+def format_history(text, start=0, end=4090):
+    # Форматируем историю
+    formatted_text = ''
+    text = text[start:end]
+
+    # Проверяем, не обрезали ли мы предложение или абзац, и если обрезали, корректируем
+    if len(text) == end:
+        end = text.rfind('. ', 0, end) + 2
+
+    text = text[:end]
+
+    for line in text.split('\n'):
+        if ": " in line:
+            role, message = line.split(": ", 1)
+            formatted_text += f"*{role.strip('*')}*: {message}\n\n"
+        else:
+            formatted_text += line + "\n"
 
     # Кнопки для навигации
     keyboard = InlineKeyboardMarkup()
-
-    if start > 0:
-        keyboard.add(InlineKeyboardButton("Назад", callback_data=f"history;prev;{start};{end}"))
-
     if len(text) > end:
         keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;{start};{end}"))
+    if start != 0:
+        keyboard.add(InlineKeyboardButton("Back", callback_data=f"history;prev;{start};{end}"))
 
-    await bot.edit_message_text(text=text_to_show, chat_id=callback_query.message.chat.id,
-                                message_id=callback_query.message.message_id, reply_markup=keyboard)
+    return formatted_text, keyboard
 
 
 @dp.message_handler(commands=['history'])
-async def show_history(message: types.Message):
-    m = await message.reply('...')
+async def show_history(message):
+    text = await get_history(message)
+    text,kb= format_history(text)
+    # Отправляем сообщение
+
     try:
-        text = await get_history(message)
-
-        # Часть истории, которую нужно показать
-        text_to_show = text[:4090]
-
-        # Кнопки для навигации
-        keyboard = InlineKeyboardMarkup()
-
-        if len(text) > 4090:
-            keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;0;4090"))
-
-        await m.edit_text(text=text_to_show, reply_markup=keyboard)
+        await message.reply(text=text, reply_markup=kb, parse_mode='Markdown')
     except:
-        traceback.print_exc()
-        await m.edit_text('Не удалось получить ответ от Демиурга')
+        try:
+            await message.reply(text=text, reply_markup=kb)
+        except:
+            traceback.print_exc()
+            await message.reply('Не удалось получить ответ от Демиурга')
+
 
 
 async def get_history(message):
@@ -115,7 +132,12 @@ async def get_history(message):
         history = user_data['history']
         history_text = user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME) + '\n'
         for msg in history:
-            role = 'Система: ' if msg['role'] == 'system' else ""
+            if msg['role'] == config.Role_SYSTEM:
+                role = 'Система: '
+            elif msg['role'] == config.Role_ASSISTANT:
+                role = user_data.get('ASSISTANT_NAME_SHORT', config.ASSISTANT_NAME_SHORT)
+            else:
+                role = ""
             history_text += f'{role}{msg["content"]}\n'
         text = history_text
     else:
@@ -664,9 +686,12 @@ async def process_function_call(function_name, function_args, message, step=0):
 async def wait_and_process_messages(chat_id, message, user_data, role):
     global dialog_locks
     response_text=None
+    cancel_event=asyncio.Event()
     while True:
         try:
             msg = await message.reply('...')
+
+
             break
         except RetryAfter as e:
             await asyncio.sleep(e.timeout)
@@ -682,14 +707,18 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
                 user_data, chat_id = await get_chat_data(message)
                 functions=user_data.get('functions',config.functions)
                 start_text =  get_start_text(user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME))
+                gpt4 = user_data.get('gpt-4', config.useGPT4)
+
+                asyncio.create_task(progress_bar('В процессе размышлений', msg, 60 if gpt4 else 15, cancel_event))
                 chat_response = await gpt_acreate(
-                    model="gpt-3.5-turbo-0613" if not user_data.get('gpt-4', config.useGPT4) else 'gpt-4-0613',
+                    model="gpt-3.5-turbo-0613" if not gpt4 else 'gpt-4-0613',
                     messages=[
                                  {'role': 'system', 'content': start_text},
                              ] + user_data['history'],
                     functions=functions,
                     function_call="auto",
                 )
+                cancel_event.set()
 
                 if 'function_call' in chat_response['choices'][0]['message']:
                     function_call = chat_response['choices'][0]['message']['function_call']
@@ -699,6 +728,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
                     except:
                         response_text=traceback.format_exc(0,False)
                         process_next=False
+
 
                     formatted_function_call =function_call["arguments"]
                     if process_next:

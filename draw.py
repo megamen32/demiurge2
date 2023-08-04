@@ -210,20 +210,27 @@ def translate_promt(prompt):
     translation = translator.translate(prompt)
     return translation
 
-async def progress_bar(text, msg, timeout=60):
+
+async def progress_bar(text, msg, timeout=60, cancel: asyncio.Event = None):
     bar_length = 10
     sleep_time = timeout // bar_length
-    bar_emoji = [  "🟩","🟨", "🟧", "🟦", "🟪","🟥"]  # массив эмодзи для прогресс-бара
+    emoji_sets = [  # Массив массивов эмодзи
+        ["🟩", "🟨", "🟧", "🟦", "🟪", "🟥"],
+        ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣"],
+        ["⭐️", "🌟", "🤩", "💫", "✨", "🌠"],
+        ["❤️", "🧡", "💛", "💚", "💙", "💜"],
+        ["🟠", "🟡", "🟢", "🔵", "🟣", "🔴"],
+    ]
+
+    bar_emoji = random.choice(emoji_sets)  # Выбираем набор эмодзи случайным образом
     for i in range(bar_length):
         progress = (i % bar_length) + 1
-        bar_str = ['⬜️']*bar_length
-        bar_str[:progress] = [bar_emoji[i//2] for _ in range(progress)]  # меняем цвет бара по мере выполнения задачи
-        await msg.edit_text(f'{text}\n' + ''.join(bar_str))
+        bar_str = ['⬜️'] * bar_length
+        bar_str[:progress] = [bar_emoji[i // 2] for _ in range(progress)]  # меняем цвет бара по мере выполнения задачи
         await asyncio.sleep(sleep_time)
-    # Fill the bar when the task is done
-    await msg.edit_text(f'{text}\n' + ''.join([bar_emoji[-1]]*bar_length))  # выставляем последний цвет из массима эмодзи как окончательный
-
-
+        if cancel and cancel.is_set():  # Проверяем, установлен ли флаг отмены
+            break
+        await msg.edit_text(f'{text}\n' + ''.join(bar_str))
 
 async def draw_and_answer(prompt, chat_id, reply_to_id):
     user_data, user_id = await get_storage_from_chat(chat_id, reply_to_id)

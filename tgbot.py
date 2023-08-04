@@ -1,6 +1,6 @@
 from aiogram import types
 
-from config import dp, Role_SYSTEM, Role_USER
+from config import dp, Role_SYSTEM, Role_USER, Role_ASSISTANT, ASSISTANT_NAME_SHORT
 
 
 async def get_storage_from_chat(chat_id, thread_id=None):
@@ -21,10 +21,14 @@ async def get_chat_data(message:types.Message):
 
 async def dialog_append(message:types.Message, text:str=None,role='user', **params):
     content=text
+    
     if content is None:
         content=message.text
     if role==Role_USER:
         content = f'{message.from_user.full_name or message.from_user.username}:{content}'
+    #if role==Role_ASSISTANT:
+        #user_data, storage_id = await get_storage_from_chat(message.chat.id,message.message_thread_id)
+        #content = f"{user_data.get('ASSISTANT_NAME_SHORT', ASSISTANT_NAME_SHORT)}:{content}"
 
     return await dialog_append_raw(message.chat.id, content,message.message_thread_id,role ,message_id=message.message_id, **params)
 
