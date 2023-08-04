@@ -731,7 +731,10 @@ async def wait_and_process_messages(chat_id, message, user_data, role):
 async def send_response_text(msg, response_text):
     if response_text:
         try:
-            await msg.edit_text(response_text[:4096])
+            try:
+                await msg.edit_text(response_text[:4096],parse_mode='MARKDOWN')
+            except:
+                await msg.edit_text(response_text[:4096])
             if config.TTS:
                 asyncio.create_task(send_tts(msg, response_text))
         except:
