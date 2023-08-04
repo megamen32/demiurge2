@@ -22,7 +22,8 @@ class MessageLoggingMiddleware(BaseMiddleware):
 
 
         if  message.text:
-            await tgbot.dialog_append(message,message.text)
+            if message.get_command(True) not in ['history']:
+                await tgbot.dialog_append(message,message.text)
         print(pprint.pprint(message))
         # Продолжаем обработку следующими middleware и обработчиками
 

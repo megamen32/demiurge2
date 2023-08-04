@@ -803,11 +803,12 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                         role = config.Role_ASSISTANT
                         user_data, chat_id = await dialog_append(message, text=response_text, role='function',
                                                                  name=function_call['name'])
-                        ans=f'{function_call["name"]}:{formatted_function_call} => \n{response_text}'
+                        ans=f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
                         await msg.edit_text(ans[:4096])
                         msg = await message.reply('...')
                         continue
-                    response_text=f'{function_call["name"]}:{formatted_function_call}) => \n{response_text}'
+                    response_text = f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
+
 
 
 
