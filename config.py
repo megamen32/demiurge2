@@ -85,7 +85,7 @@ functions = [
                 },
                 "style": {
                     "type": "string",
-                    "enum": get_styles(),
+                    #"enum": get_styles(),
                     "description": "The style of the image",
                 },
             },
@@ -108,7 +108,7 @@ functions = [
     },
     {
         "name": "search",
-        "description": "Search the web for information, returns several results with links that can be opened.",
+        "description": "Search the google with query, return list of urls,that can be opened to gain more info.",
         "parameters": {
             "type": "object",
             "properties": {

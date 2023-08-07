@@ -174,22 +174,44 @@ async def function_web(promt):
 
 
 def open_url(url):
-    smart=False
+    smart=True
     if smart:
-        from newspaper import Article
-        article = Article(url)
-        article.download()
-        article.parse()
-        if article.text:
-            text = f'{article.text}'
-        smart=any(article.text)
+        from goose3 import Goose
+
+
+
+        try:
+            g = Goose()
+            article = g.extract(url=url)
+            if len(article.cleaned_text) > 500:
+                return article.cleaned_text
+            from newspaper import Article
+            article = Article(url)
+            article.download()
+            article.parse()
+            if article.text:
+                text = f'{article.text}'
+            smart=len(article.text)>500
+        except:
+            smart=False
     if not smart:
         r = requests.get(url)
         soup = BeautifulSoup(r.content, 'html.parser')
-        # извлекаем все элементы <p>
-        paragraphs = '\n'.join([ p.text for p in soup.findAll('p')])
-        # возвращаем все абзацы в виде строки
-        text = f'{paragraphs}'
+
+        # Создаем пустую строку для хранения текста
+        text = ""
+
+        # Добавляем заголовки и абзацы с соответствующим форматированием
+        for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'li', 'a']):
+            if tag.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                text += '\n' + tag.text.strip().upper() + '\n'  # Заголовки в верхнем регистре
+            elif tag.name == 'p':
+                text += '\n' + tag.text.strip() + '\n'  # Абзацы с переносами строк
+            elif tag.name == 'li':
+                text += '  - ' + tag.text.strip() + '\n'  # Элементы списка с тире
+            else:
+                text += tag.text.strip() + ' '  # Остальные элементы без дополнительного форматирования
+
     return text
 
 
