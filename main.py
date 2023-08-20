@@ -477,6 +477,8 @@ async def toggle_function_mode(callback_query: types.CallbackQuery):
 async def switch_gpt4_mode(message: types.Message):
     # Получение данных пользователя
     user_data, chat_id = await get_chat_data(message)
+    if message.from_user.id not in config.admins_ids:
+        return await message.reply(f"Im sorry but you have no right for that")
 
     # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
     use_gpt_4 = user_data.get('gpt-4', config.useGPT4)

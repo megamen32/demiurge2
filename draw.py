@@ -31,11 +31,20 @@ imagine = None
 
 
 async def gen_img(prompt, ratio, style):
-    if isinstance(style, Style) and 'style' not in prompt:
+    if (isinstance(style, Style) or style in Style.__members__.keys())and 'style' not in prompt:
         prompt+=f". In style '{style.name.lower().replace('_',' ')}'. "
         style=MIDJOURNEY
 
-    if style == MIDJOURNEY:
+
+    if style == UNSTABILITY:
+        from imagine import agenerate_image_stability
+
+        imd_data = await agenerate_image_stability(prompt, style)
+        return imd_data[0], None,style
+    else:# style == MIDJOURNEY:
+        if style!=MIDJOURNEY and style not in prompt:
+            prompt += f". In style '{style.name.lower().replace('_', ' ')}'. "
+            style = MIDJOURNEY
         from imagine import generate_image_midjourney
         ratio_str = ratio.name.lower().replace('ratio_', '').replace('x',':')
 
@@ -44,11 +53,6 @@ async def gen_img(prompt, ratio, style):
         img_data, img_url = await generate_image_midjourney(prompt)
 
         return img_data, img_url,style
-    elif style == UNSTABILITY:
-        from imagine import agenerate_image_stability
-
-        imd_data = await agenerate_image_stability(prompt, style)
-        return imd_data[0], None,style
 
 
 async def upscale_image_imagine(img_data):
