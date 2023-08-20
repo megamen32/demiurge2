@@ -43,7 +43,7 @@ async def gen_img(prompt, ratio, style):
         return imd_data[0], None,style
     else:# style == MIDJOURNEY:
         if style!=MIDJOURNEY and style not in prompt:
-            prompt += f". In style '{style.name.lower().replace('_', ' ')}'. "
+            prompt += f". In style '{style.lower().replace('_', ' ')}'. "
             style = MIDJOURNEY
         from imagine import generate_image_midjourney
         ratio_str = ratio.name.lower().replace('ratio_', '').replace('x',':')
@@ -218,7 +218,7 @@ def translate_promt(prompt):
 
 async def progress_bar(text, msg:types.Message, timeout=60, cancel: asyncio.Event = None):
     bar_length = 10
-    sleep_time = min(10,timeout // bar_length)
+    sleep_time = max(10,timeout // bar_length)
     last_typing_time = 0
     emoji_sets = [  # Массив массивов эмодзи
         ["🟩", "🟨", "🟧", "🟦", "🟪", "🟥"],
