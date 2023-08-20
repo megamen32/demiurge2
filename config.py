@@ -100,10 +100,14 @@ functions = [
             "properties": {
                 "url": {
                     "type": "string",
-                    "description": "The URL or link of the webpage to be opened and from which the text content will be extracted.",
+                    "description": "The URL of the webpage to be opened and from which the text content will be extracted.",
+                },
+                "question": {
+                    "type": "string",
+                    "description": "The question to extract from page. must be in webpage langauge",
                 },
             },
-            "required": ["url"],
+            "required": ["url",'question'],
         },
     },
     {

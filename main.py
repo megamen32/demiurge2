@@ -729,8 +729,9 @@ async def process_function_call(function_name, function_args, message, step=0):
 
     elif function_name == 'web' or function_name=='extract_webpage_content' or function_name== 'open_link':
         url_ = function_args.get('url', '')
+        question = function_args.get('question', '')
         message.text = f"/{function_name} {url_}"
-        response_text, err = await function_web(url_)
+        response_text, err = await function_web(url_,question)
         response_text = {"error": response_text} if err else {"content": response_text}
         if step==0:
             process_next = True

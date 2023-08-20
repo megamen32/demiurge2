@@ -146,7 +146,7 @@ async def handle_web(message: types.Message):
         if promt is None or not any(promt):
             promt=message.text
         msg = await message.reply(f'opening link... {promt}')
-        text,_ = await function_web(promt)
+        text,_ = await function_web(promt,None)
         message.text=text
         await msg.edit_text(message.text[:4096])
 
@@ -161,12 +161,12 @@ async def handle_web(message: types.Message):
         await msg.edit_text('Не удалось скачать сайт')
 
 
-async def function_web(promt):
-    url = promt
+async def function_web(url,question=None):
+    url = url
     err=False
     text=None
     try:
-        text = await asyncio.get_event_loop().run_in_executor(None, open_url, (url))
+        text = await asyncio.get_event_loop().run_in_executor(None, find_relevant_section, url,question)
     except Exception as e:
         text=str(e)
         err=True
@@ -213,6 +213,27 @@ def open_url(url):
                 text += tag.text.strip() + ' '  # Остальные элементы без дополнительного форматирования
 
     return text
+from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
+def find_relevant_section(url, question=None):
+    text=open_url(url)
+    if not question:
+        return text
+    # Разбиваем текст на абзацы
+    paragraphs = text.split('\n')
+
+    # Используем TF-IDF для векторизации абзацев и вопроса
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(paragraphs + [question])
+
+    # Вычисляем косинусное сходство между вопросом и каждым абзацем
+    cosine_similarities = np.dot(tfidf_matrix[-1], tfidf_matrix[:-1].T).toarray()[0]
+
+    # Находим индекс наиболее релевантного абзаца
+    relevant_index = np.argmax(cosine_similarities)
+
+    # Возвращаем наиболее релевантный абзац
+    return paragraphs[relevant_index]
 
 
 @dp.message_handler(commands=['search'])
