@@ -31,7 +31,7 @@ imagine = None
 
 
 async def gen_img(prompt, ratio, style):
-    if (isinstance(style, Style) or style in Style.__members__.keys())and 'style' not in prompt:
+    if (isinstance(style, Style) )and 'style' not in prompt:
         prompt+=f". In style '{style.name.lower().replace('_',' ')}'. "
         style=MIDJOURNEY
 
