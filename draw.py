@@ -214,7 +214,7 @@ def translate_promt(prompt):
 
 async def progress_bar(text, msg:types.Message, timeout=60, cancel: asyncio.Event = None):
     bar_length = 10
-    sleep_time = timeout // bar_length
+    sleep_time = min(10,timeout // bar_length)
     last_typing_time = 0
     emoji_sets = [  # Массив массивов эмодзи
         ["🟩", "🟨", "🟧", "🟦", "🟪", "🟥"],

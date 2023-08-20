@@ -20,6 +20,7 @@ set_random_api_key()
 bot = LoggingBot(token=TELEGRAM_BOT_TOKEN)
 storage = RedisStorage2(prefix='demiurge')
 dp = Dispatcher(bot, storage=storage)
+admins_ids=[540308572]
 useGPT4=False
 USE_API=True
 import logging
