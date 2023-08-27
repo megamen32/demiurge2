@@ -613,29 +613,30 @@ async def send_balance(message: types.Message):
     balance_data = await get_user_balance(user_id)
 
     if "error" in balance_data:
-        await message.reply(f"Ошибка: {balance_data['error']}")
+        await message.reply(f"🚫 Ошибка: {balance_data['error']}")
         return
 
+    response_text = "📊 Ваш баланс и расходы по моделям:\n"
 
-    response_text = "Ваш баланс и стоимость использованных символов для каждой модели:\n"
     for model_name, balance in balance_data["balances"].items():
         response_text += f"\n🤖 Модель: {model_name}\n"
-        response_text += f"📥 Входящих символов: {balance['input_chars']}\n"
-        response_text += f"📤 Исходящих символов: {balance['output_chars']}\n"
-        response_text += f"💲 Общая стоимость: ${balance['total_cost']:.4f}\n"
+        response_text += f"📥 Входящие символы: {balance['input_chars']}\n"
+        response_text += f"📤 Исходящие символы: {balance['output_chars']}\n"
+        response_text += f"💲 Стоимость: ${balance['total_cost']:.4f}\n"
 
-    response_text += f"\n💰 All Income: ${balance_data['total_payments']:.4f}"
+    response_text += f"\n💰 Доходы: ${balance_data['total_payments']:.4f}"
     response_text += f"\n💰 Общий баланс: ${balance_data['total_balance']:.4f}"
+
     # Создаем inline-клавиатуру
     keyboard = InlineKeyboardMarkup()
 
-    # Добавляем кнопки
-    keyboard.add(InlineKeyboardButton("Пополнить на 100 руб.", callback_data="buy_100"))
-    keyboard.add(InlineKeyboardButton("Пополнить на 500 руб.", callback_data="buy_500"))
-    keyboard.add(InlineKeyboardButton("Пополнить на 1000 руб.", callback_data="buy_1000"))
+    # Добавляем кнопки для пополнения баланса
+    keyboard.add(InlineKeyboardButton("💳 Пополнить на 100 руб.", callback_data="buy_100"))
+    keyboard.add(InlineKeyboardButton("💳 Пополнить на 500 руб.", callback_data="buy_500"))
+    keyboard.add(InlineKeyboardButton("💳 Пополнить на 1000 руб.", callback_data="buy_1000"))
 
     # Отправляем сообщение с клавиатурой
-    await message.reply(response_text+"\nВыберите сумму для пополнения:", reply_markup=keyboard)
+    await message.reply(f"{response_text}\n\n💵 Выберите сумму для пополнения:", reply_markup=keyboard)
 async def run_in_executor(func, *args):
     loop=asyncio.get_event_loop()
     with ThreadPoolExecutor() as executor:
@@ -657,14 +658,12 @@ async def check_payment_status(payment_id,user_id):
         await asyncio.sleep(30)
 
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith('buy_'))# Определение асинхронного обработчика для callback запроса
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('buy_'))
 async def process_callback_buy(callback_query: types.CallbackQuery):
     amount = int(callback_query.data.split('_')[1])
     user_id = callback_query.from_user.id
 
-
-    await callback_query.message.answer( text='Пожалуйста wait')
-
+    message = await callback_query.message.edit_text('Пожалуйста, подождите...')
 
     try:
         payment = await run_in_executor(
@@ -675,7 +674,7 @@ async def process_callback_buy(callback_query: types.CallbackQuery):
                 },
                 "confirmation": {
                     "type": "redirect",
-                    "return_url": "https://www.merchant-website.com/return_url"
+                    "return_url": "https://t.me/demiurge_space_bot"
                 },
                 "capture": True,
                 "description": f"Пополнение баланса на {amount} руб."
@@ -683,21 +682,18 @@ async def process_callback_buy(callback_query: types.CallbackQuery):
         )
 
         if payment.confirmation and payment.confirmation.confirmation_url:
-            msg=await callback_query.message.answer(
-                                   text=f"Пожалуйста, перейдите по [ссылке]({payment.confirmation.confirmation_url}) для завершения платежа.",
-                                   parse_mode='Markdown')
-            is_payd=asyncio.create_task(check_payment_status(payment.id,user_id=callback_query.from_user.id))
-            text='Oplacheno' if await is_payd else 'Otmeneno'
-            await msg.edit_text(text)
+            await message.edit_text(f"Пожалуйста, перейдите по [ссылке]({payment.confirmation.confirmation_url}) для завершения платежа.", parse_mode='Markdown')
+            is_payd = asyncio.create_task(check_payment_status(payment.id, user_id=callback_query.from_user.id))
+            text = 'Оплачено' if await is_payd else 'Отменено'
+            await message.edit_text(text)
+            await send_balance(callback_query.message)
 
         else:
-            await callback_query.message.answer(
-                                   text="Произошла ошибка при создании платежа. Пожалуйста, попробуйте позже.")
+            await message.edit_text("Произошла ошибка при создании платежа. Пожалуйста, попробуйте позже.")
 
     except Exception as e:
         traceback.print_exc()
-        await callback_query.message.answer(text=f"Произошла ошибка: {str(e)}")
-
+        await message.edit_text(f"Произошла ошибка: {str(e)}")
 
 from aiogram import types
 
