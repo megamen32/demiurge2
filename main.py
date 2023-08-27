@@ -480,11 +480,11 @@ async def switch_gpt4_mode(message: types.Message):
     user_data, chat_id = await get_chat_data(message)
     user,_=User.get_or_create(user_id=message.from_user.id)
     balance=await get_user_balance(message.from_user.id)
-    if  balance['total_balance']<-5 and (not user.is_admin ) :
-        return await message.reply(f"Im sorry but you need more money. Press /balance")
 
     # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
     use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
+    if  balance['total_balance']<-5 and (not user.is_admin ) and use_gpt_4==False :
+        return await message.reply(f"Im sorry but you need more money. Press /balance")
 
     # Переключение режима use_gpt_4
     use_gpt_4 = not use_gpt_4
@@ -875,6 +875,18 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
             while step<3:
                 step+=1
                 user_data, chat_id = await get_chat_data(message)
+                balance = await get_user_balance(message.from_user.id)
+
+                # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
+                use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
+                user=User.get(User.user_id==message.from_user.id)
+                if balance['total_balance'] < -5 and (not user.is_admin) and use_gpt_4 == True:
+                    user_data['gpt-4']=False
+                    await dp.storage.set_data(chat_id,user_data)
+                    await message.reply(f"Im sorry but you run out off balance. And need more money. Press /balance. switching to gpt-3.5")
+
+
+
                 functions=user_data.get('functions',config.functions)
                 start_text =  get_start_text(user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME))
                 gpt4 = user_data.get('gpt-4', config.useGPT4)

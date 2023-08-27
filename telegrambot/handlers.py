@@ -8,12 +8,17 @@ from aiogram.dispatcher.middlewares import BaseMiddleware
 import config
 import tgbot
 from config import dp, bot,ASSISTANT_NAME_SHORT
+from datebase import User
 
 
 class MessageLoggingMiddleware(BaseMiddleware):
     async def on_pre_process_message(self, message: types.Message, data: dict):
         user_data,user_id=await tgbot.get_chat_data(message)
         user_data['last_message_time'] = datetime.now().timestamp()
+        user,_=User.get_or_create(user_id = user_id)
+        if _:
+            user.username=message.from_user.username or message.from_user.full_name
+            user.save()
         await dp.storage.set_data(chat=user_id,data=user_data)
         if message.reply_to_message and message.reply_to_message.text:
             user = message.reply_to_message.from_user
