@@ -640,7 +640,7 @@ async def handle_chat_update(message: types.Message):
         user_data['history'].append({"role": "system",
                                      "content": f'{user.full_name or user.username} has created new chat event: {message.content_type}', })
 
-    chat_response = await gpt_acreate(model='gpt-3.5-turbo-0613', messages=user_data['history'])
+    chat_response = await gpt_acreate(model='gpt-3.5-turbo-0613', messages=user_data['history'],user_id=message.from_user.id)
     response_text = chat_response['choices'][0]['message']['content']
 
     while ":" in response_text and len(response_text.split(":")[0].split()) < 5:
@@ -725,7 +725,7 @@ async def process_function_call(function_name, function_args, message, step=0):
         # Сохранение обновленных данных пользователя
         await dp.storage.set_data(chat=storage_id, data=user_data)
 
-        asyncio.create_task( draw_and_answer(image_description_, message.chat.id, message.message_thread_id))
+        asyncio.create_task( draw_and_answer(image_description_, message.chat.id, message.message_thread_id,message.from_user.id))
         response_text=None
         process_next = False
 
@@ -817,6 +817,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                              ] + user_data['history'],
                     functions=functions,
                     function_call="auto",
+                    user_id=message.from_user.id
                 )
                 cancel_event.set()
 
@@ -840,7 +841,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                         await msg.edit_text(ans[:4096])
                         msg = await message.reply('...')
                         continue
-                    response_text = f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
+                    response_text = None#f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
 
 
 
@@ -928,7 +929,7 @@ async def do_short_dialog(chat_id, user_data,force=False):
         else:
             reduced_history=user_data['history']
         if remaining_history:
-            summary = await summary_gpt(remaining_history)
+            summary = await summary_gpt(remaining_history,user_id=chat_id)
             # Add the summary at the start of our history
             reduced_history = [{"role": config.Role_ASSISTANT, "content": summary}] + reduced_history
 
@@ -1000,7 +1001,8 @@ async def check_inactive_users():
                                               ] + user_data['history']
                         chat_response = await gpt_acreate(
                             model="gpt-3.5-turbo-0613",
-                            messages=history_for_openai
+                            messages=history_for_openai,
+                            user_id=chat_id
                         )
                         response_text = chat_response['choices'][0]['message']['content']
 

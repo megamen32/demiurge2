@@ -11,6 +11,8 @@ from openai.error import RateLimitError
 
 
 import config
+from datebase import update_model_usage
+
 request_queue = asyncio.Queue()
 MAX_TOKENS = defaultdict(lambda: 4097, {'gpt-3.5-turbo-0613':4182-364,'gpt-3.5-turbo-16k':16384,'gpt-4':8192,'gpt-4-0613':8192-364,'gpt-3.5-turbo':4097})
 async def process_queue():
@@ -58,8 +60,11 @@ async def agpt(**params):
                     trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
                     params['messages']=[msg for msg in params['messages'] if msg['content']]
-
+                    user_id = params['user_id']
+                    params.pop('user_id')
                     result = await openai.ChatCompletion.acreate(**params)
+
+                    update_model_usage(user_id, params['model'], result['usage']['prompt_tokens'], result['usage']['completion_tokens'])
                     return result
                 except RateLimitError as error:
                     if error.error['message']=='You exceeded your current quota, please check your plan and billing details.':
@@ -145,7 +150,7 @@ async def shorten(message_text):
     return message_text
 
 
-async def summary_gpt(history_for_openai):
+async def summary_gpt(history_for_openai,user_id):
     history_for_openai = [msg for msg in history_for_openai if
                           msg['role'] in [config.Role_ASSISTANT, config.Role_SYSTEM, config.Role_USER]]
     chat_response = await gpt_acreate(
@@ -155,7 +160,7 @@ async def summary_gpt(history_for_openai):
                 'role': 'system',
                 'content': "Your task is to summarize the previous information. Do not extend the dialogue or answer any questions. Only summarize."
             }
-        ]
+        ],user_id=user_id
     )
     summary = chat_response['choices'][0]['message']['content']
     return summary

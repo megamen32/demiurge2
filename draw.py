@@ -63,7 +63,7 @@ async def upscale_image_imagine(img_data):
     return img_data
 
 
-async def improve_prompt(prompt, storage_id):
+async def improve_prompt(prompt, storage_id,user_id):
     # Detect the language of the prompt
     try:
         lang = langdetect.detect(prompt)
@@ -96,7 +96,7 @@ Here are 2 example prompts. The first is artistic, the last is photo. Use these 
 
 You will receive a text prompt and then create one creative prompt for the Midjourney AI art generator using the best practices mentioned above. Do not include explanations in your response. List one prompt on English language with correct syntax without unnecessary words. Promt is: ''' + prompt}
             ],
-            max_tokens=200
+            max_tokens=200,user_id=user_id
         )
 
         # Extract the model's response
@@ -206,7 +206,7 @@ async def handle_ratio_callback(query: types.CallbackQuery):
                                             message_id=query.message.message_id,
                                             reply_markup=kb)
     else:
-        await draw_and_answer(prompt, query.message.chat.id, query.message.message_thread_id)
+        await draw_and_answer(prompt, query.message.chat.id, query.message.message_thread_id,query.from_user.id)
 
 
 def translate_promt(prompt):
@@ -244,7 +244,7 @@ async def progress_bar(text, msg:types.Message, timeout=60, cancel: asyncio.Even
         if cancel and cancel.is_set():  # Проверяем, установлен ли флаг отмены
             break
         await msg.edit_text(f'{text}\n' + ''.join(bar_str))
-async def draw_and_answer(prompt, chat_id, reply_to_id):
+async def draw_and_answer(prompt, chat_id, reply_to_id,user_id):
     user_data, user_id = await get_storage_from_chat(chat_id, reply_to_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
     try:
@@ -266,7 +266,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
         if is_sexual:
             style = UNSTABILITY
         else:
-            prompt = await improve_prompt(prompt, chat_id)
+            prompt = await improve_prompt(prompt, chat_id,user_id)
 
         new_text = f"Finishing image... {style}\n{ratio} \n{prompt}"
 
@@ -319,7 +319,7 @@ async def handle_draw(message: types.Message):
         await message.reply("Please provide a description for the image.")
         return
 
-    return await draw_and_answer(prompt, message.chat.id, message.message_thread_id)
+    return await draw_and_answer(prompt, message.chat.id, message.message_thread_id,message.from_user.id)
 
 
 def create_settings_keyboard():

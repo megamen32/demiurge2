@@ -5,7 +5,7 @@ from aiogram.types import BotCommand
 from aiogram.utils import executor
 
 from config import dp, bot
-from datebase import ImageUnstability, ImageMidjourney, Prompt
+from datebase import ImageUnstability, ImageMidjourney, Prompt, User, ModelUsage
 from gpt import process_queue
 from main import  check_inactive_users
 from telegrambot.handlers import MessageLoggingMiddleware
@@ -16,6 +16,7 @@ async def on_startup_disp(dp):
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
         BotCommand("gpt4", "turn gpt4 on or off"),
+        BotCommand("balance", "See you balance"),
         BotCommand("functions", "change plugins that turned on or off"),
         BotCommand("summarize", "Суммировать историю диалога"),
         BotCommand("clear", "Clear историю диалога"),
@@ -35,6 +36,8 @@ if __name__ == '__main__':
     if not Prompt.table_exists(): Prompt.create_table()
     if not ImageMidjourney.table_exists(): ImageMidjourney.create_table()
     if not ImageUnstability.table_exists(): ImageUnstability.create_table()
+    if not User.table_exists(): User.create_table()
+    if not ModelUsage.table_exists(): ModelUsage.create_table()
     #start Midjourney-Web-API/app.py
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
 
