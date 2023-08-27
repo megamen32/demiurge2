@@ -23,6 +23,11 @@ dp = Dispatcher(bot, storage=storage)
 admins_ids=[540308572]
 useGPT4=False
 USE_API=True
+from yookassa import Configuration
+Configuration.configure( config('YOOMONEY_ACCOUNT_ID'), config('YOOMONEY_SECRET_KEY'))
+
+
+
 import logging
 
 # Настройка форматера

@@ -1,6 +1,7 @@
 import logging
 
 from aiogram import types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import dp, Role_SYSTEM, Role_USER, Role_ASSISTANT, ASSISTANT_NAME_SHORT
 from datebase import get_user_balance
@@ -24,24 +25,6 @@ async def get_chat_data(message:types.Message):
 
 from aiogram import types
 
-@dp.message_handler(commands=['balance'])
-async def send_balance(message: types.Message):
-    user_id = message.from_user.id
-    balance_data = await get_user_balance(user_id)
-
-    if "error" in balance_data:
-        await message.reply(f"Ошибка: {balance_data['error']}")
-        return
-
-    response_text = "Ваш баланс и стоимость использованных символов для каждой модели:\n"
-    for model_name, balance in balance_data["balances"].items():
-        response_text += f"\n🤖 Модель: {model_name}\n"
-        response_text += f"📥 Входящих символов: {balance['input_chars']}\n"
-        response_text += f"📤 Исходящих символов: {balance['output_chars']}\n"
-        response_text += f"💲 Общая стоимость: ${balance['total_cost']:.4f}\n"
-
-    response_text += f"\n💰 Общий баланс: ${balance_data['total_balance']:.4f}"
-    await message.reply(response_text)
 
 async def dialog_append(message:types.Message, text:str=None,role='user', **params):
     content=text
@@ -90,3 +73,5 @@ async def dialog_append_raw(chat_id, response_text_, thread_id=None, role='user'
         {"role": role, "content": response_text_, **params})
     await dp.storage.set_data(chat=storage_id, data=user_data)
     return user_data, storage_id
+
+

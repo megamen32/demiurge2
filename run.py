@@ -5,7 +5,7 @@ from aiogram.types import BotCommand
 from aiogram.utils import executor
 
 from config import dp, bot
-from datebase import ImageUnstability, ImageMidjourney, Prompt, User, ModelUsage
+from datebase import ImageUnstability, ImageMidjourney, Prompt, User, ModelUsage, PaymentInfo
 from gpt import process_queue
 from main import  check_inactive_users
 from telegrambot.handlers import MessageLoggingMiddleware
@@ -38,6 +38,7 @@ if __name__ == '__main__':
     if not ImageUnstability.table_exists(): ImageUnstability.create_table()
     if not User.table_exists(): User.create_table()
     if not ModelUsage.table_exists(): ModelUsage.create_table()
+    if not PaymentInfo.table_exists(): PaymentInfo.create_table()
     #start Midjourney-Web-API/app.py
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
 

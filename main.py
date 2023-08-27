@@ -10,6 +10,7 @@ import random
 import subprocess
 import tempfile
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from json import JSONDecodeError
 
@@ -28,7 +29,7 @@ import config
 import gpt
 import tgbot
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
-from datebase import Prompt, ImageUnstability
+from datebase import Prompt, ImageUnstability, User, get_user_balance, PaymentInfo
 from draw import  draw_and_answer, upscale_image_imagine
 
 # Установите ваш ключ OpenAI
@@ -477,8 +478,10 @@ async def toggle_function_mode(callback_query: types.CallbackQuery):
 async def switch_gpt4_mode(message: types.Message):
     # Получение данных пользователя
     user_data, chat_id = await get_chat_data(message)
-    if message.from_user.id not in config.admins_ids:
-        return await message.reply(f"Im sorry but you have no right for that")
+    user,_=User.get_or_create(user_id=message.from_user.id)
+    balance=await get_user_balance(message.from_user.id)
+    if  balance['total_balance']<-5 and (not user.is_admin ) :
+        return await message.reply(f"Im sorry but you need more money. Press /balance")
 
     # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
     use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
@@ -601,6 +604,99 @@ async def text_to_speech2(text):
     await asyncio.get_running_loop().run_in_executor(None,
                                                      tts.save, (filename))
     return filename
+
+from yookassa import Payment
+import uuid
+@dp.message_handler(commands=['balance'])
+async def send_balance(message: types.Message):
+    user_id = message.from_user.id
+    balance_data = await get_user_balance(user_id)
+
+    if "error" in balance_data:
+        await message.reply(f"Ошибка: {balance_data['error']}")
+        return
+
+
+    response_text = "Ваш баланс и стоимость использованных символов для каждой модели:\n"
+    for model_name, balance in balance_data["balances"].items():
+        response_text += f"\n🤖 Модель: {model_name}\n"
+        response_text += f"📥 Входящих символов: {balance['input_chars']}\n"
+        response_text += f"📤 Исходящих символов: {balance['output_chars']}\n"
+        response_text += f"💲 Общая стоимость: ${balance['total_cost']:.4f}\n"
+
+    response_text += f"\n💰 All Income: ${balance_data['total_payments']:.4f}"
+    response_text += f"\n💰 Общий баланс: ${balance_data['total_balance']:.4f}"
+    # Создаем inline-клавиатуру
+    keyboard = InlineKeyboardMarkup()
+
+    # Добавляем кнопки
+    keyboard.add(InlineKeyboardButton("Пополнить на 100 руб.", callback_data="buy_100"))
+    keyboard.add(InlineKeyboardButton("Пополнить на 500 руб.", callback_data="buy_500"))
+    keyboard.add(InlineKeyboardButton("Пополнить на 1000 руб.", callback_data="buy_1000"))
+
+    # Отправляем сообщение с клавиатурой
+    await message.reply(response_text+"\nВыберите сумму для пополнения:", reply_markup=keyboard)
+async def run_in_executor(func, *args):
+    loop=asyncio.get_event_loop()
+    with ThreadPoolExecutor() as executor:
+        return await loop.run_in_executor(executor, func, *args)
+
+
+async def check_payment_status(payment_id,user_id):
+    while True:
+        payment :Payment= await run_in_executor(Payment.find_one, payment_id)
+        if payment.status == 'succeeded':
+            pay=PaymentInfo.create(amount=float(payment.amount.value),user=user_id,)
+            # Платеж успешно завершен
+            # Здесь ваш код для обработки успешного платежа
+            return True
+        elif payment.status == 'canceled':
+            # Платеж был отменен
+            # Здесь ваш код для обработки отмененного платежа
+            return False
+        await asyncio.sleep(30)
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('buy_'))# Определение асинхронного обработчика для callback запроса
+async def process_callback_buy(callback_query: types.CallbackQuery):
+    amount = int(callback_query.data.split('_')[1])
+    user_id = callback_query.from_user.id
+
+
+    await callback_query.message.answer( text='Пожалуйста wait')
+
+
+    try:
+        payment = await run_in_executor(
+            Payment.create, {
+                "amount": {
+                    "value": str(amount),
+                    "currency": "RUB"
+                },
+                "confirmation": {
+                    "type": "redirect",
+                    "return_url": "https://www.merchant-website.com/return_url"
+                },
+                "capture": True,
+                "description": f"Пополнение баланса на {amount} руб."
+            }, uuid.uuid4()
+        )
+
+        if payment.confirmation and payment.confirmation.confirmation_url:
+            msg=await callback_query.message.answer(
+                                   text=f"Пожалуйста, перейдите по [ссылке]({payment.confirmation.confirmation_url}) для завершения платежа.",
+                                   parse_mode='Markdown')
+            is_payd=asyncio.create_task(check_payment_status(payment.id,user_id=callback_query.from_user.id))
+            text='Oplacheno' if await is_payd else 'Otmeneno'
+            await msg.edit_text(text)
+
+        else:
+            await callback_query.message.answer(
+                                   text="Произошла ошибка при создании платежа. Пожалуйста, попробуйте позже.")
+
+    except Exception as e:
+        traceback.print_exc()
+        await callback_query.message.answer(text=f"Произошла ошибка: {str(e)}")
 
 
 from aiogram import types
