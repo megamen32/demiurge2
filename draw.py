@@ -42,7 +42,7 @@ async def gen_img(prompt, ratio, style):
         imd_data = await agenerate_image_stability(prompt, style)
         return imd_data[0], None,style
     else:# style == MIDJOURNEY:
-        if style!=MIDJOURNEY and style not in prompt:
+        if style!=MIDJOURNEY and isinstance(style,str) and style not in prompt:
             prompt += f". In style '{style.lower().replace('_', ' ')}'. "
             style = MIDJOURNEY
         from imagine import generate_image_midjourney
@@ -254,6 +254,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
     msg = await bot.send_message(chat_id=chat_id, text=f"Creating image... {style}\n{ratio} \n{prompt}",
                                  reply_to_message_id=reply_to_id)
     error = False
+    cancel_event = asyncio.Event()
     try:
         if re.match('[а-яА-Я]+', prompt):
             prompt = translate_promt(prompt)
@@ -268,7 +269,8 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
             prompt = await improve_prompt(prompt, chat_id)
 
         new_text = f"Finishing image... {style}\n{ratio} \n{prompt}"
-        asyncio.create_task(progress_bar(new_text,msg))
+
+        asyncio.create_task(progress_bar(new_text,msg,cancel=cancel_event))
         old_style=style
         img_file, url,style = await gen_img(prompt, ratio, style)
         if img_file is None:
@@ -306,6 +308,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id):
         di= {'prompt': prompt, 'style': style.name  if isinstance(style,Style) else style, 'image generated without exception':traceback.format_exc(0,False)}
         await tgbot.dialog_append(msg, json.dumps(di, ensure_ascii=False), 'function', name='draw')
     finally:
+        cancel_event.set()
         await msg.delete()
 
 
