@@ -8,11 +8,13 @@ from config import dp, bot
 from datebase import ImageUnstability, ImageMidjourney, Prompt, User, ModelUsage, PaymentInfo
 from gpt import process_queue
 from main import  check_inactive_users
+from memory import mem_init
 from telegrambot.handlers import MessageLoggingMiddleware
 
 async def on_startup_disp(dp):
     asyncio.create_task(process_queue())
     asyncio.create_task(check_inactive_users())
+    asyncio.create_task(mem_init())
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
         BotCommand("gpt4", "turn gpt4 on or off"),

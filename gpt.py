@@ -153,8 +153,9 @@ async def shorten(message_text):
 async def summary_gpt(history_for_openai,user_id):
     history_for_openai = [msg for msg in history_for_openai if
                           msg['role'] in [config.Role_ASSISTANT, config.Role_SYSTEM, config.Role_USER]]
+    model = "gpt-3.5-turbo-16k"
     chat_response = await gpt_acreate(
-        model="gpt-3.5-turbo-16k",
+        model=model,
         messages=history_for_openai + [
             {
                 'role': 'system',

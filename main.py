@@ -28,7 +28,7 @@ from pydub import AudioSegment
 import config
 import gpt
 import tgbot
-from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, dp, get_first_word, bot
+from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, get_first_word, bot
 from datebase import Prompt, ImageUnstability, User, get_user_balance, PaymentInfo
 from draw import  draw_and_answer, upscale_image_imagine
 
@@ -37,7 +37,8 @@ from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 from image_caption import image_caption_generator
 from telegrambot.handlers import MessageLoggingMiddleware
 from tgbot import dialog_append
-
+from memory import *
+from memory import dp
 openai.api_key = CHATGPT_API_KEY
 
 
@@ -748,7 +749,6 @@ from asyncio import CancelledError
 
 processing_tasks = {}
 
-
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message, role='user',edit=False):
     user_data, chat_id = await get_chat_data(message)
@@ -955,7 +955,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
 
 
                 break
-
+        user_data, chat_id = await get_chat_data(message)
         asyncio.create_task(do_short_dialog(chat_id, user_data))
         if response_text:
             asyncio.create_task( send_response_text(msg, response_text))
