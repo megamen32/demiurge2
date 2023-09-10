@@ -942,8 +942,9 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                         user_data, chat_id = await dialog_append(message, text=response_text, role='function',
                                                                  name=function_call['name'])
                         ans=f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
-                        await msg.edit_text(ans[:4096])
-                        msg = await message.reply('...')
+                        if function_call["name"]  in ['python']:
+                            await msg.edit_text(ans[:4096])
+                            msg = await message.reply('...')
                         continue
                     response_text = None#f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
 
@@ -1042,7 +1043,8 @@ async def do_short_dialog(chat_id, user_data,force=False):
 
         # Save the updated history to the user's data
         await dp.storage.set_data(chat=chat_id, data=user_data)
-        if summary:
+        send_summary_to_user=user_data.get('summary',False)
+        if summary and send_summary_to_user:
             chat_id,thread_id=storage_to_chat_id(chat_id)
             try:
                 await bot.send_message(chat_id=chat_id,text=f"Summary :{summary}"[:4096],reply_to_message_id=thread_id,ignore=True)
@@ -1086,7 +1088,7 @@ async def check_inactive_users():
             if 'last_message_time' not in user_data:
                 continue
             last_message_time = datetime.fromtimestamp(user_data['last_message_time'])
-            if datetime.now() - last_message_time > timedelta(hours=24):  # если прошло 24 часа
+            if datetime.now() - last_message_time > timedelta(hours=24+12):  # если прошло 24 часа
                 # генерируем сообщение
                 user_data['last_message_time'] = datetime.now().timestamp()
                 await dp.storage.set_data(chat=storage_id, data=user_data)
