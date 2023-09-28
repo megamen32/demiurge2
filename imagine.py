@@ -49,21 +49,24 @@ async def upscale_image(file_name, number):
     steps=0
     async with aiohttp.ClientSession() as session:
         while steps<6:
-            steps+=1
-            if steps != 1:
-                await asyncio.sleep(30)
-            async with session.get(url, params=params) as resp:
-                if resp.status == 200:
+            try:
+                steps+=1
+                if steps != 1:
+                    await asyncio.sleep(30)
+                async with session.get(url, params=params) as resp:
+                    if resp.status == 200:
 
-                    response_json = await resp.json()
-                    if 'error' in response_json:
-                        continue
-                    upscaled_url = response_json["latest_image_url"]
-                    print('Upscale successful!')
-                    break
-                else:
-                    print(f'Upscale error: {resp.status}')
-                    upscaled_url = None
+                        response_json = await resp.json()
+                        if 'error' in response_json:
+                            continue
+                        upscaled_url = response_json["latest_image_url"]
+                        print('Upscale successful!')
+                        break
+                    else:
+                        print(f'Upscale error: {resp.status}')
+                        upscaled_url = None
+            except:
+                traceback.print_exc()
 
 
     if upscaled_url:
