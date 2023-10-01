@@ -1,5 +1,6 @@
 import asyncio
 import io
+import logging
 import re
 import traceback
 
@@ -58,6 +59,7 @@ async def upscale_image(file_name, number):
 
                         response_json = await resp.json()
                         if 'error' in response_json:
+                            logging.error(response_json)
                             continue
                         upscaled_url = response_json["latest_image_url"]
                         print('Upscale successful!')

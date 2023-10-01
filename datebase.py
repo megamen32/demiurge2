@@ -14,7 +14,7 @@ class ImageMidjourney(peewee.Model):
     url= peewee.CharField(unique=True)
     prompt=peewee.CharField()
     def filename(self):
-        return   self.url.split('/')[-1].split('&',1)[0]
+        return   self.url.split('/')[-1].split('?',1)[0]
     class Meta:
         database=peewee.SqliteDatabase('promt.db')
 
