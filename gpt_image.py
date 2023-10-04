@@ -11,7 +11,7 @@ def lazy_load_model():
 
     from transformers import AutoTokenizer, ViTFeatureExtractor, VisionEncoderDecoderModel
 
-    device = 'cuda'
+    device = 'cpu'
 
     encoder_checkpoint = "nlpconnect/vit-gpt2-image-captioning"
     decoder_checkpoint = "nlpconnect/vit-gpt2-image-captioning"
