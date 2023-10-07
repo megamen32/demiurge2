@@ -9,14 +9,16 @@ from aiogram import types
 
 import aiohttp
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.exceptions import BadRequest
 from bs4 import BeautifulSoup
+from llama_index import Response
 
 import config
 import tgbot
 import trends
 from config import dp
 from datebase import ImageMidjourney
-from draw import improve_prompt,progress_bar
+from draw import improve_prompt, progress_bar
 from gpt import shorten
 from tgbot import get_chat_data
 
@@ -39,7 +41,8 @@ async def generate_image_midjourney(prompt):
         async with session.get(url) as resp:
             response_bytes = await resp.read()
 
-    return response_bytes,url
+    return response_bytes, url
+
 
 async def upscale_image(file_name, number):
     url = f"http://localhost:5001/upscale"
@@ -47,11 +50,11 @@ async def upscale_image(file_name, number):
         "file_name": file_name,
         "number": number
     }
-    steps=0
+    steps = 0
     async with aiohttp.ClientSession() as session:
-        while steps<6:
+        while steps < 6:
             try:
-                steps+=1
+                steps += 1
                 if steps != 1:
                     await asyncio.sleep(30)
                 async with session.get(url, params=params) as resp:
@@ -70,7 +73,6 @@ async def upscale_image(file_name, number):
             except:
                 traceback.print_exc()
 
-
     if upscaled_url:
         async with aiohttp.ClientSession() as session:
             async with session.get(upscaled_url) as resp:
@@ -80,25 +82,26 @@ async def upscale_image(file_name, number):
 
     return None
 
-@dp.message_handler(commands=['imagine','i'])
+
+@dp.message_handler(commands=['imagine', 'i'])
 async def handle_imagine(message: types.Message):
-    old=prompt = message.get_args()
+    old = prompt = message.get_args()
     if not prompt:
         await message.reply("Please provide a description for the image.")
         return
 
     msg = await message.reply("Creating image...")
     try:
-        chat_id=message.chat.id
+        chat_id = message.chat.id
 
-        prompt = await improve_prompt(prompt,chat_id,message.from_user.id)
-        asyncio.create_task( msg.edit_text(prompt))
-        img_data=None
+        prompt = await improve_prompt(prompt, chat_id, message.from_user.id)
+        asyncio.create_task(msg.edit_text(prompt))
+        img_data = None
         try:
             img_data, image_url = await generate_image_midjourney(prompt)
             # Extract file name from the URL
 
-            img_db=ImageMidjourney.create(prompt=prompt,url=image_url)
+            img_db = ImageMidjourney.create(prompt=prompt, url=image_url)
 
         except:
             traceback.print_exc()
@@ -109,81 +112,87 @@ async def handle_imagine(message: types.Message):
 
         kb = InlineKeyboardMarkup(resize_keyboard=True)
 
-        btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_+1}_{img_db.id}") for _ in range(4)]
+        btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in range(4)]
         kb.row(*btns)
-        photo=await message.answer_photo(photo=io.BytesIO(img_data),caption=prompt,reply_markup=kb)
+        photo = await message.answer_photo(photo=io.BytesIO(img_data), caption=prompt, reply_markup=kb)
     except:
         traceback.print_exc()
         await message.answer('An error occurred while generating the image.')
     finally:
         await msg.delete()
 
-@dp.callback_query_handler(lambda c:c.data.startswith("imagine_"))
+
+@dp.callback_query_handler(lambda c: c.data.startswith("imagine_"))
 async def handle_draw_callback(query: types.CallbackQuery):
-    _,number,img_id = query.data.split("_")
-    number=int(number)
+    _, number, img_id = query.data.split("_")
+    number = int(number)
     img_db = ImageMidjourney.get(id=img_id)
     await query.answer(f'... upscaling {number}')
     msg = await query.message.reply(f'... upscaling {img_db.prompt} {number}')
-    asyncio.create_task(progress_bar(f'Upscaling #{number} {img_db.prompt}',msg))
+    asyncio.create_task(progress_bar(f'Upscaling #{number} {img_db.prompt}', msg))
     if img_db:
-        img_data=None
+        img_data = None
         try:
             img_data = await upscale_image(img_db.filename(), number)
         except:
             traceback.print_exc()
         if img_data:
-            await query.message.answer_photo(photo=img_data,caption=img_db.prompt)
+            await query.message.answer_photo(photo=img_data, caption=img_db.prompt)
             await msg.delete()
             return
     await msg.edit_text("An error occurred while upscalling the image.")
 
-@dp.message_handler(commands=['web'])
-#@dp.message_handler(regexp=r'https?://[^\s]+')
-async def handle_web(message: types.Message):
 
+@dp.message_handler(commands=['web'])
+# @dp.message_handler(regexp=r'https?://[^\s]+')
+async def handle_web(message: types.Message):
     try:
-        promt=None
+        promt = None
         try:
-            promt=message.get_args()
+            promt = message.get_args()
         except:
             pass
         if promt is None or not any(promt):
-            promt=message.text
+            promt = message.text
         msg = await message.reply(f'opening link... {promt}')
-        text,_ = await function_web(promt,None)
-        message.text=text
-        await msg.edit_text(message.text[:4096])
+        text, _ = await function_web(promt, None)
+        message.text = text
+        try:
+            await msg.edit_text(text[:4000])
+        except BadRequest:
+            await msg.reply(text[:4000])
 
         message_text = message.text
-        message.text=await shorten(message_text)
-        await tgbot.dialog_append(message,message.text,role='function',name='open_link')
+        message.text = await shorten(message_text)
+        await tgbot.dialog_append(message, message.text, role='function', name='open_link')
 
         from main import handle_message
-        return await handle_message(message,role='function')
+        return await handle_message(message, role='function')
     except:
         traceback.print_exc()
         await msg.edit_text('Не удалось скачать сайт')
 
 
-async def function_web(url,question=None):
+async def function_web(url, question=None):
     url = url
-    err=False
-    text=None
+    err = False
+    text = None
     try:
-        text = await asyncio.get_event_loop().run_in_executor(None, find_relevant_section, url,question)
+        text = await asyncio.get_event_loop().run_in_executor(None, find_relevant_section, url, question)
+        if type(text) is Response:
+            text=text.response
     except Exception as e:
-        text=str(e)
-        err=True
-    return text,err
+        text = str(e)
+        err = True
+
+    return text, err
 
 
 def open_url(url):
-    smart=True
+
+    smart = True
     if smart:
         from goose3 import Goose
-
-
 
         try:
             g = Goose()
@@ -196,9 +205,9 @@ def open_url(url):
             article.parse()
             if article.text:
                 text = f'{article.text}'
-            smart=len(article.text)>500
+            smart = len(article.text) > 500
         except:
-            smart=False
+            smart = False
     if not smart:
         r = requests.get(url)
         soup = BeautifulSoup(r.content, 'html.parser')
@@ -218,32 +227,49 @@ def open_url(url):
                 text += tag.text.strip() + ' '  # Остальные элементы без дополнительного форматирования
 
     return text
+
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
+
+
 def find_relevant_section(url, question=None):
-    text=open_url(url)
+    if not question and ' ' in url:
+        url, question = url.split(' ', maxsplit=1)
+    if 'youtube.com/' in url:
+
+        from memory import smart_youtube_reader
+        return smart_youtube_reader(url,question)
+    text = open_url(url)
     if not question:
+        if type(text) is list:
+            text=' '.join(text)
         return text
     # Разбиваем текст на абзацы
-    paragraphs = text.split('\n')
+    if type(text) == str:
+        paragraphs = text.split('\n')
+    else:
+        paragraphs=text
 
-    # Используем TF-IDF для векторизации абзацев и вопроса
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(paragraphs + [question])
+    # noinspection PyUnreachableCode
+    if True:
+        # Используем TF-IDF для векторизации абзацев и вопроса
+        vectorizer = TfidfVectorizer()
+        tfidf_matrix = vectorizer.fit_transform(paragraphs + [question])
 
-    # Вычисляем косинусное сходство между вопросом и каждым абзацем
-    cosine_similarities = np.dot(tfidf_matrix[-1], tfidf_matrix[:-1].T).toarray()[0]
+        # Вычисляем косинусное сходство между вопросом и каждым абзацем
+        cosine_similarities = np.dot(tfidf_matrix[-1], tfidf_matrix[:-1].T).toarray()[0]
 
-    # Находим индекс наиболее релевантного абзаца
-    relevant_index = np.argmax(cosine_similarities)
+        # Находим индекс наиболее релевантного абзаца
+        relevant_index = np.argmax(cosine_similarities)
 
-    # Возвращаем наиболее релевантный абзац
-    return paragraphs[relevant_index]
+        # Возвращаем наиболее релевантный абзац
+        return paragraphs[relevant_index]
+    #await query_index(None, text, [file_path.name])
 
 
 @dp.message_handler(commands=['search'])
 async def handle_search(message: types.Message):
-
     promt = None
     try:
         promt = message.get_args()
@@ -253,63 +279,67 @@ async def handle_search(message: types.Message):
         promt = message.text
     msg = await message.reply(f'searching for... {promt}')
 
-    news=await function_search(promt)
+    news = await function_search(promt)
 
-    text='\n'.join(news)
-    #text+='\n'.join([f'{n}' for n in tags])
+    text = '\n'.join(news)
+    # text+='\n'.join([f'{n}' for n in tags])
 
     await msg.edit_text(text)
-    await tgbot.dialog_append(message, news, 'function',name='search')
+    await tgbot.dialog_append(message, news, 'function', name='search')
     from main import handle_message
-    return await handle_message(message,role='system')
+    return await handle_message(message, role='system')
+
+
 async def function_search(promt):
     loop = asyncio.get_running_loop()
     # tags=loop.run_in_executor(None,trends.get_tags)
     news = await loop.run_in_executor(None, trends.get_news, promt)
-    news = [{'Title': result['title'], 'url': result['link'],'Snippet': result['snippet']} for result in news]
+    news = [{'Title': result['title'], 'url': result['link'], 'Snippet': result['snippet']} for result in news]
     return news
 
-def process_search_commands(response_text,message, pattern='/search (.+)\/?',coroutine=handle_search):
+
+def process_search_commands(response_text, message, pattern='/search (.+)\/?', coroutine=handle_search):
     while True:
         prompts = re.findall(pattern, response_text)
         if not prompts:
             break
         for prompt in prompts:
-
-            message.text=prompt
+            message.text = prompt
             asyncio.create_task(coroutine(message))
         response_text = re.sub(pattern, '', response_text)
     return response_text
 
 
-def generate_image_stability(prompt,style='photo'):
+def generate_image_stability(prompt, style='photo'):
     from unstabilityai import fetch_image
-    files=fetch_image(prompt,style)
+    files = fetch_image(prompt, style)
     return files
 
-async def agenerate_image_stability(prompt,style='photo'):
-    return await asyncio.get_running_loop().run_in_executor(None,generate_image_stability,prompt,style)
-@dp.message_handler(commands=['stable','s'])
+
+async def agenerate_image_stability(prompt, style='photo'):
+    return await asyncio.get_running_loop().run_in_executor(None, generate_image_stability, prompt, style)
+
+
+@dp.message_handler(commands=['stable', 's'])
 async def handle_imagine(message: types.Message):
-    old=prompt = message.get_args()
+    old = prompt = message.get_args()
     if not prompt:
         await message.reply("Please provide a description for the image.")
         return
 
     msg = await message.reply("Creating image...")
     try:
-        chat_id=message.chat.id
+        chat_id = message.chat.id
 
-
-        user_data , user_id = await get_chat_data(message)
+        user_data, user_id = await get_chat_data(message)
         user_data['history'].extend([
             {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
-        await dp.storage.set_data(chat=chat_id,data=user_data)
-        prompt = await improve_prompt(prompt,chat_id,message.from_user.id)
-        asyncio.create_task( msg.edit_text(prompt))
-        img_data=None
+        await dp.storage.set_data(chat=chat_id, data=user_data)
+        prompt = await improve_prompt(prompt, chat_id, message.from_user.id)
+        asyncio.create_task(msg.edit_text(prompt))
+        img_data = None
         try:
-            img_data = await asyncio.get_running_loop().run_in_executor(None, generate_image_stability,(prompt))
+            img_data = await asyncio.get_running_loop().run_in_executor(None, generate_image_stability, (prompt))
             # Extract file name from the URL
 
 
@@ -323,7 +353,7 @@ async def handle_imagine(message: types.Message):
 
         kb = InlineKeyboardMarkup(resize_keyboard=True)
         for photo in img_data:
-            asyncio.create_task( message.answer_photo(photo=io.BytesIO(photo),caption=prompt,reply_markup=kb))
+            asyncio.create_task(message.answer_photo(photo=io.BytesIO(photo), caption=prompt, reply_markup=kb))
         await msg.delete()
     except:
         traceback.print_exc()

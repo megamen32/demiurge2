@@ -11,3 +11,4 @@ GoogleNews
 newspaper3k
 googlesearch-python
 translate
+youtube-transcript-api
