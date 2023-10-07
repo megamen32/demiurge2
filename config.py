@@ -92,7 +92,7 @@ functions = [
                 "style": {
                     "type": "string",
                     #"enum": get_styles(),
-                    "description": "The style of the image",
+                    "description": "The style of the image, like logo or cyberpunk",
                 },
             },
             "required": ["image_description","style"],
