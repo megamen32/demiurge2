@@ -22,6 +22,7 @@ def lazy_load_model():
     try:
         model = VisionEncoderDecoderModel.from_pretrained(model_checkpoint).to(device)
     except :
+        device='cpu'
         model = VisionEncoderDecoderModel.from_pretrained(model_checkpoint).to('cpu')
 def predict(image, max_length=64, num_beams=4):
     global model

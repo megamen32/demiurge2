@@ -1,3 +1,4 @@
+import asyncio
 import glob
 import os
 import traceback
@@ -10,6 +11,7 @@ from llama_index.readers import YoutubeTranscriptReader
 from llama_index.tools import QueryEngineTool, ToolMetadata
 from youtube_transcript_api import NoTranscriptFound
 
+import config
 from config import bot, dp
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, ServiceContext, SummaryIndex
 
@@ -18,6 +20,9 @@ from read_all_files import read_file
 
 
 import pickle
+
+from tgbot import get_chat_data
+
 redis=None
 async def mem_init():
     global redis
@@ -31,13 +36,13 @@ async def mem_init():
 
 def get_index(chat_id,files=None):
     documents = SimpleDirectoryReader(input_files=files).load_data()
-    index = VectorStoreIndex.from_documents(documents)
+    index = SummaryIndex.from_documents(documents)
     return index
 def smart_youtube_reader(video_url,query_text,model='gpt-3.5-turbo'):
     reader=YoutubeTranscriptReader()
     documents=reader.load_data([video_url])
     #vector_index = VectorStoreIndex.from_documents(documents)
-    llm = OpenAI(temperature=0, model="gpt-3.5-turbo")
+    llm = OpenAI(temperature=0, model=model)
     service_context = ServiceContext.from_defaults(llm=llm)
 
     # build summary index
@@ -78,13 +83,17 @@ def get_youtube_transcript(video_url):
     content=[s['text'] for s in srt]
     return content
 
-async def query_index(chat_id, query_text,files):
+async def query_index(chat_id, query_text,files,model='gpt-3.5-turbo'):
 
+    def non_async():
 
-
-    index=get_index(chat_id,files)
-    query_engine = index.as_query_engine()
-    results = query_engine.query(query_text)
+        index=get_index(chat_id,files)
+        llm = OpenAI(temperature=0, model=model)
+        service_context = ServiceContext.from_defaults(llm=llm)
+        query_engine = index.as_query_engine(service_context=service_context)
+        results = query_engine.query(query_text)
+        return results
+    results=await asyncio.get_running_loop().run_in_executor(None,non_async)
 
     return f'{results}'
 from aiogram import types
@@ -98,10 +107,10 @@ async def handle_doc_query(message: types.Message):
 
         file_path = await bot.download_file_by_id(message.document.file_id, destination_dir=f"data/{chat_id}")
         # Здесь загрузите файл в индекс
+        user_data, chat_id = await get_chat_data(message)
+        model = 'gpt-3.5-turbo' if not user_data.get('gpt-4', config.useGPT4) else 'gpt-4'
 
-
-
-        results = await query_index(chat_id, text,[file_path.name])
+        results = await query_index(chat_id, text,[file_path.name],model)
         if results:
             await message.reply( f"Found results: {results}")
         else:

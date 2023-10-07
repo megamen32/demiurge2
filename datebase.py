@@ -3,6 +3,9 @@ from typing import List
 
 import peewee
 
+
+
+
 class Prompt(peewee.Model):
     id= peewee.AutoField(primary_key=True)
     text= peewee.CharField(unique=True)
@@ -70,9 +73,10 @@ async def get_rub_to_usd():
     return 95
 
 
-async def get_user_balance(user_id):
+async def get_user_balance(user_id,message):
     try:
-        user = User.get(User.user_id == user_id)
+        from telegrambot.handlers import create_user
+        user = create_user( message,user_id)
         model_usages :List[ModelUsage]= ModelUsage.select().where(ModelUsage.user == user)
         payments = PaymentInfo.select().where(PaymentInfo.user_id == user_id)
         total_payments = sum([payment.amount for payment in payments])

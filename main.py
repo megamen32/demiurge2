@@ -35,7 +35,7 @@ from draw import  draw_and_answer, upscale_image_imagine
 # Установите ваш ключ OpenAI
 from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 from image_caption import image_caption_generator
-from telegrambot.handlers import MessageLoggingMiddleware
+from telegrambot.handlers import MessageLoggingMiddleware, create_user
 from tgbot import dialog_append
 from memory import *
 from memory import dp
@@ -480,7 +480,7 @@ async def switch_gpt4_mode(message: types.Message):
     # Получение данных пользователя
     user_data, chat_id = await get_chat_data(message)
     user,_=User.get_or_create(user_id=message.from_user.id)
-    balance=await get_user_balance(message.from_user.id)
+    balance=await get_user_balance(message.from_user.id,message)
 
     # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
     use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
@@ -525,7 +525,10 @@ async def handle_edited_message(message: types.Message):
             traceback.print_exc()
 
         await dialog_append(message, message.text)
-        nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}',ignore=True)
+        if old:
+            nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}',ignore=True)
+        else:
+            message
         await handle_message(nmsg,edit=True)
 
 
@@ -611,7 +614,7 @@ import uuid
 @dp.message_handler(commands=['balance'])
 async def send_balance(message: types.Message):
     user_id = message.from_user.id
-    balance_data = await get_user_balance(user_id)
+    balance_data = await get_user_balance(user_id,message=message)
 
     if "error" in balance_data:
         await message.reply(f"🚫 Ошибка: {balance_data['error']}")
@@ -877,12 +880,12 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
             while step<3:
                 step+=1
                 user_data, chat_id = await get_chat_data(message)
-                balance = await get_user_balance(message.from_user.id)
+                balance = await get_user_balance(message.from_user.id,message=message)
 
                 # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
                 use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
-                user=User.get(User.user_id==message.from_user.id)
-                if balance['total_balance'] < -5 and (not user.is_admin) and use_gpt_4 == True:
+                user=create_user(message, chat_id)
+                if 'total_balance' in balance and balance['total_balance'] < -5 and (not user.is_admin) and use_gpt_4 == True:
                     user_data['gpt-4']=False
                     await dp.storage.set_data(chat_id,user_data)
                     await message.reply(f"Im sorry but you run out off balance. And need more money. Press /balance. switching to gpt-3.5")
@@ -980,16 +983,21 @@ async def send_response_text(msg, response_text):
     if response_text:
         parse_modes = ['Markdown', None]
 
+        sended=False
         for mode in parse_modes:
             try:
                 # Если parse_mode = None, параметр parse_mode не будет передан
                 await msg.edit_text(response_text[:4096], parse_mode=mode)
+                sended=True
                 if config.TTS:
                     asyncio.create_task(send_tts(msg, response_text))
                 break  # если сообщение было успешно отправлено, прекратить перебор
             except Exception as e:
                 traceback.print_exc()
                 continue
+        if not sended:
+            await msg.answer(response_text[:1000])
+            await msg.delete()
     else:
         await msg.delete()
 
@@ -1055,7 +1063,7 @@ async def do_short_dialog(chat_id, user_data,force=False):
         return summary
 
 
-async def send_tts(message, msg, response_text):
+async def send_tts(message,  response_text):
     if False:
         voice_filename = await asyncio.get_running_loop().run_in_executor(None, text_to_speech, (response_text))
     else:
@@ -1063,7 +1071,7 @@ async def send_tts(message, msg, response_text):
     if os.path.exists(voice_filename):
         with open(voice_filename, 'rb') as audio:
             await message.reply_voice(voice=audio, caption=response_text[:1024])
-        await msg.delete()
+
 
 
 import redis
