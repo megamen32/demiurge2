@@ -33,10 +33,10 @@ def get_index(chat_id,files=None):
     documents = SimpleDirectoryReader(input_files=files).load_data()
     index = VectorStoreIndex.from_documents(documents)
     return index
-def smart_youtube_reader(video_url,query_text):
+def smart_youtube_reader(video_url,query_text,model='gpt-3.5-turbo'):
     reader=YoutubeTranscriptReader()
     documents=reader.load_data([video_url])
-    vector_index = VectorStoreIndex.from_documents(documents)
+    #vector_index = VectorStoreIndex.from_documents(documents)
     llm = OpenAI(temperature=0, model="gpt-3.5-turbo")
     service_context = ServiceContext.from_defaults(llm=llm)
 
@@ -45,37 +45,13 @@ def smart_youtube_reader(video_url,query_text):
         documents, service_context=service_context
     )
     # define query engines
-    vector_query_engine = vector_index.as_query_engine()
+    #vector_query_engine = vector_index.as_query_engine()
     list_query_engine = summary_index.as_query_engine()
 
-    # define tools
-    query_engine_tools = [
-        QueryEngineTool(
-            query_engine=vector_query_engine,
-            metadata=ToolMetadata(
-                name="vector_tool",
-                description=f"Useful for summarization questions",
-            ),
-        ),
-        QueryEngineTool(
-            query_engine=list_query_engine,
-            metadata=ToolMetadata(
-                name="summary_tool",
-                description=f"Useful for retrieving specific context",
-            ),
-        ),
-    ]
-
-    # build agent
-    function_llm = OpenAI(model="gpt-3.5-turbo-0613")
-    agent = OpenAIAgent.from_tools(
-        query_engine_tools,
-        llm=function_llm,
-        verbose=True,
-    )
     if not query_text:
         query_text='Summarise the main points in a list format on russian language'
-    results=agent.query(query_text)
+    results=list_query_engine.query(query_text)
+    print('youtube sum%: ',results.response)
     return results
 
 

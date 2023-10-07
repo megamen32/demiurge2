@@ -100,7 +100,7 @@ functions = [
     },
     {
         "name": "open_link",
-        "description": "Opens a specified URL, retrieves and analyzes the textual content of the webpage.",
+        "description": "Opens a specified URL, retrieves and analyzes the textual content of the webpage. Also working for youtube video urls",
         "parameters": {
             "type": "object",
             "properties": {

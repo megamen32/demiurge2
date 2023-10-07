@@ -173,12 +173,12 @@ async def handle_web(message: types.Message):
         await msg.edit_text('Не удалось скачать сайт')
 
 
-async def function_web(url, question=None):
+async def function_web(url, question=None,model='gpt-3.5-turbo'):
     url = url
     err = False
     text = None
     try:
-        text = await asyncio.get_event_loop().run_in_executor(None, find_relevant_section, url, question)
+        text = await asyncio.get_event_loop().run_in_executor(None, find_relevant_section, url, question,model)
         if type(text) is Response:
             text=text.response
     except Exception as e:
@@ -233,13 +233,13 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 
 
-def find_relevant_section(url, question=None):
+def find_relevant_section(url, question=None,model='gpt-3.5-turbo'):
     if not question and ' ' in url:
         url, question = url.split(' ', maxsplit=1)
     if 'youtube.com/' in url:
 
         from memory import smart_youtube_reader
-        return smart_youtube_reader(url,question)
+        return smart_youtube_reader(url,question,model)
     text = open_url(url)
     if not question:
         if type(text) is list:

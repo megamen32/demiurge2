@@ -824,8 +824,10 @@ async def process_function_call(function_name, function_args, message, step=0):
     elif function_name == 'web' or function_name=='extract_webpage_content' or function_name== 'open_link':
         url_ = function_args.get('url', '')
         question = function_args.get('question', '')
+        user_data, storage_id = await get_chat_data(message)
         message.text = f"/{function_name} {url_}"
-        response_text, err = await function_web(url_,question)
+        model='gpt-3.5-turbo' if not  user_data.get('gpt-4',config.useGPT4) else 'gpt-4'
+        response_text, err = await function_web(url_,question,model)
         response_text = {"error": response_text} if err else {"content": response_text}
         if step==0:
             process_next = True
