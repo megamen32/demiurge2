@@ -246,7 +246,7 @@ async def progress_bar(text, msg:types.Message, timeout=60, cancel: asyncio.Even
         await asyncio.sleep(sleep_time)
         if cancel and cancel.is_set():  # Проверяем, установлен ли флаг отмены
             break
-        await msg.edit_text(f'{text}\n' + ''.join(bar_str))
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=f'{text}\n' + ''.join(bar_str),ignore=True)
 async def draw_and_answer(prompt, chat_id, reply_to_id,user_id):
     user_data, user_id = await get_storage_from_chat(chat_id, reply_to_id)
     ratio = Ratio[user_data.get('ratio', 'RATIO_4X3')]
@@ -255,7 +255,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id,user_id):
     except:
         style = user_data.get('style', 'ANIME_V2')
     msg = await bot.send_message(chat_id=chat_id, text=f"Creating image... {style}\n{ratio} \n{prompt}",
-                                 reply_to_message_id=reply_to_id)
+                                 reply_to_message_id=reply_to_id,ignore=True)
     error = False
     cancel_event = asyncio.Event()
     try:

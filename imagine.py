@@ -11,12 +11,12 @@ import aiohttp
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.exceptions import BadRequest
 from bs4 import BeautifulSoup
-from llama_index import Response
 
-import config
+
+
 import tgbot
 import trends
-from config import dp
+from config import dp,bot
 from datebase import ImageMidjourney
 from draw import improve_prompt, progress_bar
 from gpt import shorten
@@ -95,7 +95,7 @@ async def handle_imagine(message: types.Message):
         chat_id = message.chat.id
 
         prompt = await improve_prompt(prompt, chat_id, message.from_user.id)
-        asyncio.create_task(msg.edit_text(prompt))
+        asyncio.create_task(bot.edit_message_text(chat_id=msg.chat.id, message_id=msg.message_id, text=prompt))
         img_data = None
         try:
             img_data, image_url = await generate_image_midjourney(prompt)
@@ -107,7 +107,7 @@ async def handle_imagine(message: types.Message):
             traceback.print_exc()
 
         if img_data is None:
-            await msg.edit_text("An error occurred while generating the image.")
+            await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text="An error occurred while generating the image.")
             return
 
         kb = InlineKeyboardMarkup(resize_keyboard=True)
@@ -140,7 +140,7 @@ async def handle_draw_callback(query: types.CallbackQuery):
             await query.message.answer_photo(photo=img_data, caption=img_db.prompt)
             await msg.delete()
             return
-    await msg.edit_text("An error occurred while upscalling the image.")
+    await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text="An error occurred while upscalling the image.")
 
 
 @dp.message_handler(commands=['web'])
@@ -158,7 +158,7 @@ async def handle_web(message: types.Message):
         text, _ = await function_web(promt, None)
         message.text = text
         try:
-            await msg.edit_text(text[:4000])
+            await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=text[:4000])
         except BadRequest:
             await msg.reply(text[:4000])
 
@@ -170,10 +170,11 @@ async def handle_web(message: types.Message):
         return await handle_message(message, role='function')
     except:
         traceback.print_exc()
-        await msg.edit_text('Не удалось скачать сайт')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось скачать сайт')
 
 
 async def function_web(url, question=None,model='gpt-3.5-turbo'):
+    from llama_index import Response
     url = url
     err = False
     text = None
@@ -284,7 +285,7 @@ async def handle_search(message: types.Message):
     text = '\n'.join(news)
     # text+='\n'.join([f'{n}' for n in tags])
 
-    await msg.edit_text(text)
+    await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=text)
     await tgbot.dialog_append(message, news, 'function', name='search')
     from main import handle_message
     return await handle_message(message, role='system')
@@ -336,7 +337,7 @@ async def handle_imagine(message: types.Message):
             {'role': 'user', 'content': f'{message.from_user.full_name or message.from_user.username}: /draw {old}'}])
         await dp.storage.set_data(chat=chat_id, data=user_data)
         prompt = await improve_prompt(prompt, chat_id, message.from_user.id)
-        asyncio.create_task(msg.edit_text(prompt))
+        asyncio.create_task(bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=prompt))
         img_data = None
         try:
             img_data = await asyncio.get_running_loop().run_in_executor(None, generate_image_stability, (prompt))
@@ -348,7 +349,7 @@ async def handle_imagine(message: types.Message):
             traceback.print_exc()
 
         if img_data is None:
-            await msg.edit_text("An error occurred while generating the image.")
+            await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text="An error occurred while generating the image.")
             return
 
         kb = InlineKeyboardMarkup(resize_keyboard=True)

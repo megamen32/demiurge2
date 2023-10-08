@@ -10,6 +10,7 @@ import random
 import subprocess
 import tempfile
 import traceback
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from json import JSONDecodeError
@@ -37,7 +38,6 @@ from gpt import process_queue, gpt_acreate, count_tokens, summary_gpt
 from image_caption import image_caption_generator
 from telegrambot.handlers import MessageLoggingMiddleware, create_user
 from tgbot import dialog_append
-from memory import *
 from memory import dp
 openai.api_key = CHATGPT_API_KEY
 
@@ -68,11 +68,11 @@ async def process_callback_history_button(callback_query: types.CallbackQuery):
     end = int(end)
 
     if action == "next":
-        start += 4090
+        start += end
         end += 4090
     elif action == "prev":
-        start -= 4090
-        end -= 4090
+        start =max(0,start- 4090)
+        end -= start
 
     text = await get_history(callback_query.message)
 
@@ -81,19 +81,14 @@ async def process_callback_history_button(callback_query: types.CallbackQuery):
     text,kb=format_history(text,start, end)
 
     await bot.edit_message_text(text=text, chat_id=callback_query.message.chat.id,
-                                message_id=callback_query.message.message_id, reply_markup=kb)
+                                message_id=callback_query.message.message_id, reply_markup=kb,ignore=True)
 
 
-def format_history(text, start=0, end=4090):
+def format_history(original_text, start=0, end=4090):
     # Форматируем историю
     formatted_text = ''
-    text = text[start:end]
+    text = original_text[start:end]
 
-    # Проверяем, не обрезали ли мы предложение или абзац, и если обрезали, корректируем
-    if len(text) == end:
-        end = text.rfind('. ', 0, end) + 2
-
-    text = text[:end]
 
     for line in text.split('\n'):
         if ": " in line:
@@ -104,7 +99,9 @@ def format_history(text, start=0, end=4090):
 
     # Кнопки для навигации
     keyboard = InlineKeyboardMarkup()
-    if len(text) > end:
+    formatted_text=formatted_text[:4096]
+    end=original_text.rfind(formatted_text.rstrip('\n')[-1])
+    if len(original_text)-10 > end:
         keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;{start};{end}"))
     if start != 0:
         keyboard.add(InlineKeyboardButton("Back", callback_data=f"history;prev;{start};{end}"))
@@ -158,10 +155,10 @@ async def clear_history(message: types.Message):
         if 'history' in user_data and user_data['history']:
             user_data['history'] = []
             await dp.storage.set_data(chat=chat_id, data=user_data)
-        await msg.edit_text('История диалога очищена.')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='История диалога очищена.')
     except:
         traceback.print_exc()
-        await msg.edit_text('Не удалось очистить историю диалога.')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось очистить историю диалога.')
 
 
 @dp.message_handler(commands=['summarize'])
@@ -171,10 +168,10 @@ async def summarize_history(message: types.Message):
         user_data, chat_id = await get_chat_data(message)
         await do_short_dialog(chat_id, user_data,force=True)
         summary = await get_history(message)
-        await msg.edit_text(text=f"История диалога была суммирована:\n{summary[:4096]}")
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=f"История диалога была суммирована:\n{summary[:4096]}")
     except:
         traceback.print_exc()
-        await msg.edit_text('Не удалось получить ответ от Демиурга')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось получить ответ от Демиурга')
 
 
 
@@ -197,7 +194,7 @@ async def handle_voice(message: types.Message):
         text = await recognize (file_id)
         message.text = text
         await dialog_append(message, message.text)
-        asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text[:4000]}'))
+        asyncio.create_task(bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=f'Вы сказали:\n{text[:4000]}'))
 
 
         if len(text) > 4000:
@@ -210,7 +207,7 @@ async def handle_voice(message: types.Message):
         return await handle_message(message)
     except:
         traceback.print_exc()
-        await msg.edit_text('Не удалось получить ответ от Демиурга')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось получить ответ от Демиурга')
 
 
 @dp.message_handler(content_types=types.ContentType.PHOTO)
@@ -244,11 +241,11 @@ async def handle_photo(message: types.Message):
         if message.caption:
             content += f'. User provided the following message with the image: "{message.caption}"'
         await dialog_append(message, content, config.Role_USER)
-        asyncio.create_task(msg.edit_text(f'Вы send photo:\n{text}'))
+        asyncio.create_task(bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=f'Вы send photo:\n{text}'))
         return await handle_message(message, role='system')
     except:
         traceback.print_exc()
-        await msg.edit_text('Не удалось получить ответ от Демиурга')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось получить ответ от Демиурга')
 
 
 @dp.message_handler(content_types=types.ContentType.VIDEO)
@@ -270,18 +267,19 @@ async def handle_video(message: types.Message):
         text = await recognize(file_id, f'.{ext}')
 
         await tgbot.dialog_append(message, text)
-        asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text}'))
+        asyncio.create_task(bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=f'Вы сказали:\n{text}'))
         return await handle_message(message)
     except:
         traceback.print_exc()
-        await msg.edit_text('Не удалось получить ответ от Демиурга')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось получить ответ от Демиурга')
 
-from gensim.models import KeyedVectors
-from tqdm import tqdm
+
 
 lazy_model=None
 @dp.message_handler(commands=['calc'])
 async def handle_calc(message: types.Message):
+    from gensim.models import KeyedVectors
+    from tqdm import tqdm
     global lazy_model
     try:
         msg=await message.answer('...')
@@ -314,10 +312,10 @@ async def handle_calc(message: types.Message):
         if current_word is not None:
             result_words.append(current_word)
 
-        await msg.edit_text( ' '.join(result_words))
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text= ' '.join(result_words))
     except:
         traceback.print_exc()
-        await msg.edit_text(traceback.format_exc())
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=traceback.format_exc())
 speech_model = None
 def split_audio(audio_file, chunk_duration):
     # Разбивает аудиофайл на чанки указанной длительности и возвращает список файлов чанков
@@ -513,22 +511,27 @@ async def handle_edited_message(message: types.Message):
             # Находим и заменяем отредактированное сообщение в истории
             msg_id = None
             for msg in reversed(user_data['history']):
-                if msg['role'] == 'user' and 'message_id' in msg and msg['message_id'] == message.message_id:
+                if  msg['message_id'] == message.message_id:
                     msg_id=j = user_data['history'].index(msg)
-                    while user_data['history'][j]['role']!= config.Role_ASSISTANT and j<len(user_data['history']) :
+                    while  j<len(user_data['history']) and  user_data['history'][j]['role']not in [config.Role_ASSISTANT,config.Role_FUNCTION] :
+                        debug_msg=user_data['history'][j]
                         j+=1
-                    old=user_data['history'][j]
+                    old=user_data['history'][j-1]
                     break
-            user_data['history'] = user_data['history'][:msg_id]
-            await dp.storage.set_data(chat=chat_id, data=user_data)
+            #user_data['history'] = user_data['history'][:msg_id]
+            #await dp.storage.set_data(chat=chat_id, data=user_data)
+            #tgbot.dialog_edit(chat_id=chat_id,message_id=message.message_id,)
         except:
             traceback.print_exc()
 
         await dialog_append(message, message.text)
-        if old:
-            nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}',ignore=True)
-        else:
-            message
+        nmsg=None
+        try:
+            if 'old' in locals():
+                nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}',ignore=True)
+        except:traceback.print_exc()
+        if nmsg is None:
+            nmsg=message
         await handle_message(nmsg,edit=True)
 
 
@@ -754,22 +757,29 @@ processing_tasks = {}
 
 @dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message, role='user',edit=False):
+    global managing_dialog_locks
+    global processing_tasks
+
     user_data, chat_id = await get_chat_data(message)
+    async with managing_dialog_locks[chat_id]:
 
-    # Получите текущую задачу обработки для этого пользователя (если есть)
-    current_processing_task = processing_tasks.get(chat_id, None)
+        # Получите текущую задачу обработки для этого пользователя (если есть)
 
-    # Если задача обработки уже запущена, отмените ее
-    if current_processing_task:
-        current_processing_task.cancel()
-        try:
-            await current_processing_task
-        except CancelledError:
-            pass
+        current_processing_task = processing_tasks.get(chat_id, None)
 
-    # Запуск новой задачи обработки с задержкой
-    processing_task = asyncio.create_task(wait_and_process_messages(chat_id, message, user_data, role,edit=edit))
-    processing_tasks[chat_id] = processing_task
+        # Если задача обработки уже запущена, отмените ее
+        if current_processing_task:
+            current_processing_task.cancel()
+            try:
+                await current_processing_task
+            except CancelledError:
+                pass
+            user_data['history']=[msg for msg in user_data['history'] if msg['content'].strip()!='...']
+            await dp.storage.set_data(chat=chat_id,data=user_data)
+
+        # Запуск новой задачи обработки с задержкой
+        processing_task = asyncio.create_task(wait_and_process_messages(chat_id, message, user_data, role,edit=edit))
+        processing_tasks[chat_id] = processing_task
 
 
 def execute_python_code(code:str):
@@ -795,7 +805,8 @@ def execute_python_code(code:str):
 
 
 # Создайте глобальную блокировку
-dialog_locks = {}
+dialog_locks = defaultdict(lambda :asyncio.Lock())
+managing_dialog_locks = defaultdict(lambda :asyncio.Lock())
 async def process_function_call(function_name, function_args, message, step=0):
     process_next = False
     try:
@@ -872,8 +883,8 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
             await asyncio.sleep(e.timeout)
             continue
 
-    lock = dialog_locks.get(chat_id, asyncio.Lock())
-    dialog_locks[chat_id] = lock
+    lock = dialog_locks[chat_id]
+
     try:
         async with lock:
             step=0
@@ -948,7 +959,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                                                                  name=function_call['name'])
                         ans=f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
                         if function_call["name"]  in ['python']:
-                            await msg.edit_text(ans[:4096])
+                            await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=ans[:4096])
                             msg = await message.reply('...')
                         continue
                     response_text = None#f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
@@ -971,7 +982,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
     except:
         cancel_event.set()
         traceback.print_exc()
-        await msg.edit_text(msg.text+'\n'+traceback.format_exc())
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=msg.text+'\n'+traceback.format_exc())
 
 
 def get_start_text(character):
@@ -987,7 +998,7 @@ async def send_response_text(msg, response_text):
         for mode in parse_modes:
             try:
                 # Если parse_mode = None, параметр parse_mode не будет передан
-                await msg.edit_text(response_text[:4096], parse_mode=mode)
+                await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=response_text[:4096], parse_mode=mode)
                 sended=True
                 if config.TTS:
                     asyncio.create_task(send_tts(msg, response_text))
@@ -1110,7 +1121,7 @@ async def check_inactive_users():
                     user_data = await dp.storage.get_data(chat=storage_id)
 
                     try:
-                        msg = await dp.bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
+                        msg = await bot.send_message(chat_id=chat_id, text='hmm...', reply_to_message_id=thread_id)
 
                         history_for_openai = [{'role': 'system',
                                                'content': get_start_text(ASSISTANT_NAME)},
@@ -1125,8 +1136,7 @@ async def check_inactive_users():
                         # отправляем сообщение
 
                         logging.info(f'sended {response_text} to {storage_id}')
-                        msg = await msg.edit_text(text=response_text)
-                        await tgbot.dialog_append(msg, response_text, config.Role_ASSISTANT)
+                        msg = await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=response_text)
                     except (BotKicked, BotBlocked):
                         # Бот был исключён из чата, удаляем данные о чате
                         await dp.storage.reset_data(chat=storage_id)

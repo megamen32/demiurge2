@@ -156,3 +156,4 @@ TTS=config('TTS',default=False,cast=bool)
 Role_ASSISTANT = 'assistant'
 Role_USER = 'user'
 Role_SYSTEM = 'system'
+Role_FUNCTION = 'function'

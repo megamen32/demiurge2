@@ -4,28 +4,29 @@ import os
 import traceback
 
 import aiogram.types
-import aioredis
-from llama_index.agent import OpenAIAgent
-from llama_index.llms import OpenAI
-from llama_index.readers import YoutubeTranscriptReader
-from llama_index.tools import QueryEngineTool, ToolMetadata
-from youtube_transcript_api import NoTranscriptFound
 
-import config
+
+
+
+
+
 from config import bot, dp
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, ServiceContext, SummaryIndex
-
-from read_all_files import read_file
 
 
+#from read_all_files import read_file
 
-import pickle
+
+
+#import pickle
 
 from tgbot import get_chat_data
 
 redis=None
 async def mem_init():
+    if True:
+        return #deprecated function
     global redis
+    import aioredis
     redis = await aioredis.from_url("redis://localhost")
     if not os.path.exists('data/'):
         os.mkdir('data')
@@ -35,10 +36,14 @@ async def mem_init():
 
 
 def get_index(chat_id,files=None):
+    from llama_index import SimpleDirectoryReader, ServiceContext, SummaryIndex
     documents = SimpleDirectoryReader(input_files=files).load_data()
     index = SummaryIndex.from_documents(documents)
     return index
 def smart_youtube_reader(video_url,query_text,model='gpt-3.5-turbo'):
+    from llama_index.readers import YoutubeTranscriptReader
+    from llama_index.llms import OpenAI
+    from llama_index import SimpleDirectoryReader, ServiceContext, SummaryIndex
     reader=YoutubeTranscriptReader()
     documents=reader.load_data([video_url])
     #vector_index = VectorStoreIndex.from_documents(documents)
@@ -62,6 +67,7 @@ def smart_youtube_reader(video_url,query_text,model='gpt-3.5-turbo'):
 
 def get_youtube_transcript(video_url):
     from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api import NoTranscriptFound
 
     # using the srt variable with the list of dictionaries
     # obtained by the .get_transcript() function
@@ -84,7 +90,7 @@ def get_youtube_transcript(video_url):
     return content
 
 async def query_index(chat_id, query_text,files,model='gpt-3.5-turbo'):
-
+    from llama_index.llms import OpenAI
     def non_async():
 
         index=get_index(chat_id,files)

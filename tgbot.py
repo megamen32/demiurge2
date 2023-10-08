@@ -37,7 +37,7 @@ async def dialog_append(message:types.Message, text:str=None,role='user', **para
         #user_data, storage_id = await get_storage_from_chat(message.chat.id,message.message_thread_id)
         #content = f"{user_data.get('ASSISTANT_NAME_SHORT', ASSISTANT_NAME_SHORT)}:{content}"
 
-    return await dialog_append_raw(message.chat.id, content,message.message_thread_id,role ,message_id=message.message_id, **params)
+    return await dialog_append_raw(chat_id=message.chat.id,response_text_= content,thread_id=message.message_thread_id,role=role ,message_id=message.message_id, **params)
 
 async def dialog_edit(chat_id,message_id ,text,thread_id=None, **params):
     if text is None:
