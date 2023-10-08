@@ -27,7 +27,7 @@ class MessageLoggingMiddleware(BaseMiddleware):
         if  message.text:
             if message.get_command(True) not in ['history']:
                 await tgbot.dialog_append(message,message.text)
-        print(pprint.pprint(message))
+        print(message.text or message.caption,user_id)
         # Продолжаем обработку следующими middleware и обработчиками
 
 def create_user( message, user_id):

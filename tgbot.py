@@ -53,12 +53,13 @@ async def dialog_edit(chat_id,message_id ,text,thread_id=None, **params):
     for i, dialog_message in enumerate(dialog_history):
         if dialog_message.get('message_id') == message_id:
             # Обновить содержимое сообщения
+            old=dialog_message['content']
             dialog_message['content'] = text
             # Обновить историю диалога
             user_data['history'][i] = dialog_message
             # Обновить хранилище данных пользователя
             await dp.storage.set_data(chat=storage_id, data=user_data)
-            print(f"Edited a message to: {text}")
+            print(f"Edited a message from {old} to: {text} in {storage_id}")
             break
 
     return user_data, storage_id

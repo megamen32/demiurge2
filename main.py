@@ -159,7 +159,7 @@ async def clear_history(message: types.Message):
         if 'history' in user_data and user_data['history']:
             user_data['history'] = []
             await dp.storage.set_data(chat=chat_id, data=user_data)
-        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='История диалога очищена.')
+        await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='История диалога очищена.',ignore=True)
     except:
         traceback.print_exc()
         await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text='Не удалось очистить историю диалога.')
@@ -517,10 +517,11 @@ async def handle_edited_message(message: types.Message):
             for msg in reversed(user_data['history']):
                 if  msg['message_id'] == message.message_id:
                     msg_id=j = user_data['history'].index(msg)
-                    while  j<len(user_data['history']) and  user_data['history'][j]['role']not in [config.Role_ASSISTANT,config.Role_FUNCTION] :
+                    user_data['history'][msg_id]['content']=message.text or message.caption
+                    while  j+1<len(user_data['history']) and  user_data['history'][j]['role']not in [config.Role_ASSISTANT,config.Role_FUNCTION] :
                         debug_msg=user_data['history'][j]
                         j+=1
-                    old=user_data['history'][j-1]
+                    old=user_data['history'][j]
                     break
             #user_data['history'] = user_data['history'][:msg_id]
             #await dp.storage.set_data(chat=chat_id, data=user_data)
@@ -528,7 +529,7 @@ async def handle_edited_message(message: types.Message):
         except:
             traceback.print_exc()
 
-        await dialog_append(message, message.text)
+
         nmsg=None
         try:
             if 'old' in locals():
@@ -536,6 +537,7 @@ async def handle_edited_message(message: types.Message):
         except:traceback.print_exc()
         if nmsg is None:
             nmsg=message
+            await dialog_append(message, message.text)
         await handle_message(nmsg,edit=True)
 
 
