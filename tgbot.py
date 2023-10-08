@@ -62,6 +62,23 @@ async def dialog_edit(chat_id,message_id ,text,thread_id=None, **params):
             break
 
     return user_data, storage_id
+
+
+async def dialog_delete(chat_id, message_id, thread_id=None, **params):
+    # Получить хранилище данных и историю диалога
+    user_data, storage_id = await get_storage_from_chat(chat_id, thread_id)
+    dialog_history = user_data.get('history', [])
+
+    # Найти и удалить сообщение
+    message_to_remove = next((m for m in dialog_history if m.get('message_id') == message_id), None)
+
+    if message_to_remove:
+        dialog_history.remove(message_to_remove)
+        print(f'removing {message_to_remove["content"]}')
+    else:
+        logging.error(f'message_not_found! {chat_id} {message_id} {thread_id or params}')
+
+    return user_data, storage_id
 async def dialog_append_raw(chat_id, response_text_, thread_id=None, role='user', **params):
     user_data, storage_id = await get_storage_from_chat(chat_id, thread_id)
     if thread_id is not None:

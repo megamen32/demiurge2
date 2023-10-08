@@ -44,4 +44,10 @@ class LoggingBot(Bot):
             except:
                 traceback.print_exc()
         return result
+    async def delete_message(self,chat_id,message_id,**kwargs):
+        from tgbot import dialog_delete
+        result = await super().delete_message( chat_id, message_id)
+        await dialog_delete(chat_id=chat_id, message_id=message_id)
+
+
 

@@ -100,7 +100,11 @@ def format_history(original_text, start=0, end=4090):
     # Кнопки для навигации
     keyboard = InlineKeyboardMarkup()
     formatted_text=formatted_text[:4096]
-    end=original_text.rfind(formatted_text.rstrip('\n')[-1])
+    last_known_world = formatted_text.rstrip('\n')[-1]
+    try:
+        end=original_text.rfind(last_known_world)
+    except:
+        logging.error(f"not found end in {last_known_world} {original_text[-15:]}")
     if len(original_text)-10 > end:
         keyboard.add(InlineKeyboardButton("Вперёд", callback_data=f"history;next;{start};{end}"))
     if start != 0:
@@ -963,11 +967,12 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                             msg = await message.reply('...')
                         continue
                     response_text = None#f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
+                    if function_call["name"] in ['draw']:
+                        await msg.delete()
 
 
 
-
-                else:
+                else:#not a function
                     response_text = chat_response['choices'][0]['message']['content']#.replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}:",'').replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)} :",'').replace(f"{user_data.get('ASSISTANT_NAME', config.ASSISTANT_NAME)}",'')
 
 
