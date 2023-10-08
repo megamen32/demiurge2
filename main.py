@@ -198,7 +198,7 @@ async def handle_voice(message: types.Message):
         message.text = text
         await dialog_append(message, message.text)
         asyncio.create_task(msg.edit_text(f'Вы сказали:\n{text[:4000]}'))
-        await msg.edit_text(f'Вы сказали:\n{text[:4000]}')
+
 
         if len(text) > 4000:
             # Отправляем остальную часть длинного текста в отдельных сообщениях
@@ -480,7 +480,7 @@ async def switch_gpt4_mode(message: types.Message):
     # Получение данных пользователя
     user_data, chat_id = await get_chat_data(message)
     user,_=User.get_or_create(user_id=message.from_user.id)
-    balance=await get_user_balance(message.from_user.id,message)
+    balance=await get_user_balance(message.from_id,message=message)
 
     # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
     use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
@@ -613,7 +613,7 @@ from yookassa import Payment
 import uuid
 @dp.message_handler(commands=['balance'])
 async def send_balance(message: types.Message):
-    user_id = message.from_user.id
+    user_id = message.from_id
     balance_data = await get_user_balance(user_id,message=message)
 
     if "error" in balance_data:
@@ -880,14 +880,14 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
             while step<3:
                 step+=1
                 user_data, chat_id = await get_chat_data(message)
-                balance = await get_user_balance(message.from_user.id,message=message)
+                balance = await get_user_balance(message.from_id,message=message)
 
                 # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
                 use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
                 user=create_user(message, chat_id)
                 if 'total_balance' in balance and balance['total_balance'] < -5 and (not user.is_admin) and use_gpt_4 == True:
                     user_data['gpt-4']=False
-                    await dp.storage.set_data(chat_id,user_data)
+                    await dp.storage.set_data(chat=chat_id,data=user_data)
                     await message.reply(f"Im sorry but you run out off balance. And need more money. Press /balance. switching to gpt-3.5")
 
 

@@ -32,8 +32,11 @@ imagine = None
 
 async def gen_img(prompt, ratio, style):
     if (isinstance(style, Style) )and 'style' not in prompt:
-        prompt+=f". In style '{style.name.lower().replace('_',' ')}'. "
-        style=MIDJOURNEY
+        if style==Style.NO_STYLE:
+            style=None
+        else:
+            prompt+=f". In style '{style.name.lower().replace('_',' ')}'. "
+            style=MIDJOURNEY
 
 
     if style == UNSTABILITY:

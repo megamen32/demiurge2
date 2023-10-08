@@ -101,7 +101,7 @@ async def get_user_balance(user_id,message):
 
         return {"balances": balances, "total_balance": total_balance,'total_payments':total_payments}
     except User.DoesNotExist:
-        return {"error": "User not found"}
+        return {"error": "User not found","balances": balances, "total_balance": total_balance,'total_payments':total_payments}
 
 
 class PaymentInfo(Model):
