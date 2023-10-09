@@ -236,7 +236,7 @@ async def handle_photo(message: types.Message):
             img=await upscale_image_imagine(data)
             await message.answer_photo(io.BytesIO(img),caption='upscaled')
             os.remove(destination)
-            await msg.delete()
+            await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
             return
 
         text = await asyncio.get_running_loop().run_in_executor(None, image_caption_generator, destination)
@@ -517,8 +517,9 @@ async def handle_edited_message(message: types.Message):
             for msg in reversed(user_data['history']):
                 if  msg['message_id'] == message.message_id:
                     msg_id=j = user_data['history'].index(msg)
-                    user_data['history'][msg_id]['content']=message.text or message.caption
-                    while  j+1<len(user_data['history']) and  user_data['history'][j]['role']not in [config.Role_ASSISTANT,config.Role_FUNCTION] :
+                    await tgbot.dialog_edit(message.chat.id, message.message_id, message.text, message.message_thread_id)
+                    #await dp.storage.set_data(chat=chat_id,data=user_data)
+                    while  j+1<len(user_data['history']) and  user_data['history'][j]['role']not in [config.Role_ASSISTANT] :
                         debug_msg=user_data['history'][j]
                         j+=1
                     old=user_data['history'][j]
@@ -533,7 +534,7 @@ async def handle_edited_message(message: types.Message):
         nmsg=None
         try:
             if 'old' in locals():
-                nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}',ignore=True)
+                nmsg=await bot.edit_message_text(chat_id=chat_id,message_id=old['message_id'],text=f'Rethinking..\n{old["content"]}')
         except:traceback.print_exc()
         if nmsg is None:
             nmsg=message
@@ -970,7 +971,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                         continue
                     response_text = None#f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
                     if function_call["name"] in ['draw']:
-                        await msg.delete()
+                        await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
 
 
 
@@ -985,7 +986,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
             asyncio.create_task( send_response_text(msg, response_text))
     except CancelledError:
         cancel_event.set()
-        await msg.delete()
+        await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
     except:
         cancel_event.set()
         traceback.print_exc()
@@ -1015,9 +1016,9 @@ async def send_response_text(msg, response_text):
                 continue
         if not sended:
             await msg.answer(response_text[:1000])
-            await msg.delete()
+            await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
     else:
-        await msg.delete()
+        await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
 
 
 async def do_short_dialog(chat_id, user_data,force=False):

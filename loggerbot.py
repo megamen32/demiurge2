@@ -48,8 +48,6 @@ class LoggingBot(Bot):
     async def delete_message(self,chat_id,message_id,thread_id=None,**kwargs):
         from tgbot import dialog_delete
         result = await super().delete_message( chat_id, message_id)
-        if result.message_thread_id and result.message_id == result.message_thread_id + 1:
-            result.message_thread_id=None
         await dialog_delete(chat_id=chat_id, message_id=message_id,thread_id=thread_id)
 
 

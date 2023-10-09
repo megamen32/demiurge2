@@ -54,7 +54,8 @@ async def dialog_edit(chat_id,message_id ,text,thread_id=None, **params):
         if dialog_message.get('message_id') == message_id:
             # Обновить содержимое сообщения
             old=dialog_message['content']
-            dialog_message['content'] = text
+
+            dialog_message['content'] = text if dialog_message['role']!=Role_USER else dialog_message['content'].split(': ',1)[0]+': '+text
             # Обновить историю диалога
             user_data['history'][i] = dialog_message
             # Обновить хранилище данных пользователя

@@ -312,7 +312,7 @@ async def draw_and_answer(prompt, chat_id, reply_to_id,user_id):
         await tgbot.dialog_append(msg, json.dumps(di, ensure_ascii=False), 'function', name='draw')
     finally:
         cancel_event.set()
-        await msg.delete()
+        await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
 
 
 @dp.message_handler(commands=['draw'])

@@ -119,7 +119,7 @@ async def handle_imagine(message: types.Message):
         traceback.print_exc()
         await message.answer('An error occurred while generating the image.')
     finally:
-        await msg.delete()
+        await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("imagine_"))
@@ -138,7 +138,7 @@ async def handle_draw_callback(query: types.CallbackQuery):
             traceback.print_exc()
         if img_data:
             await query.message.answer_photo(photo=img_data, caption=img_db.prompt)
-            await msg.delete()
+            await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
             return
     await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text="An error occurred while upscalling the image.")
 
@@ -355,7 +355,7 @@ async def handle_imagine(message: types.Message):
         kb = InlineKeyboardMarkup(resize_keyboard=True)
         for photo in img_data:
             asyncio.create_task(message.answer_photo(photo=io.BytesIO(photo), caption=prompt, reply_markup=kb))
-        await msg.delete()
+        await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
     except:
         traceback.print_exc()
         await message.answer('An error occurred while generating the image.')
