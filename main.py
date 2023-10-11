@@ -476,6 +476,24 @@ async def toggle_function_mode(callback_query: types.CallbackQuery):
 
     # Ответить на callback_query, чтобы убрать кружок загрузки на кнопке
 
+@dp.message_handler(commands=['tts'])
+async def switch_gpt4_mode(message: types.Message):
+    # Получение данных пользователя
+    user_data, chat_id = await get_chat_data(message)
+    user,_=User.get_or_create(user_id=message.from_user.id)
+
+    use_tts = user_data.get('tts', config.TTS )
+
+    # Переключение режима use_gpt_4
+    use_tts = not use_tts
+
+    # Сохранение нового значения в данных пользователя
+    user_data['tts'] = use_tts
+    await dp.storage.set_data(chat=chat_id, data=user_data)
+
+    # Отправка сообщения пользователю об изменении режима
+    await message.reply(f"Text to speach mode is now {'ON' if use_tts else 'OFF'}.")
+
 
 @dp.message_handler(commands=['gpt4'])
 async def switch_gpt4_mode(message: types.Message):
@@ -1008,7 +1026,8 @@ async def send_response_text(msg, response_text):
                 # Если parse_mode = None, параметр parse_mode не будет передан
                 await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=response_text[:4096], parse_mode=mode)
                 sended=True
-                if config.TTS:
+                data,chat_id=await get_chat_data(message=msg)
+                if config.TTS or data.get('tts',config.TTS):
                     asyncio.create_task(send_tts(msg, response_text))
                 break  # если сообщение было успешно отправлено, прекратить перебор
             except Exception as e:
