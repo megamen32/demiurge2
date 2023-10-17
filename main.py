@@ -920,7 +920,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
 
                 # Получение текущего значения use_gpt_4 или получение значения по умолчанию, если оно ещё не установлено
                 use_gpt_4 = user_data.get('gpt-4', config.useGPT4)
-                user=create_user(message, chat_id)
+                user=create_user(message)
                 if 'total_balance' in balance and balance['total_balance'] < -5 and (not user.is_admin) and use_gpt_4 == True:
                     user_data['gpt-4']=False
                     await dp.storage.set_data(chat=chat_id,data=user_data)

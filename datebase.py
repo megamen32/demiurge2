@@ -76,7 +76,7 @@ async def get_rub_to_usd():
 async def get_user_balance(user_id,message):
     try:
         from telegrambot.handlers import create_user
-        user = create_user( message,user_id)
+        user = create_user( message)
         model_usages :List[ModelUsage]= ModelUsage.select().where(ModelUsage.user == user)
         payments = PaymentInfo.select().where(PaymentInfo.user_id == user_id)
         total_payments = sum([payment.amount for payment in payments])

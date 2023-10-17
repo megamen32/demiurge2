@@ -9,7 +9,6 @@ import openai
 from aiolimiter import AsyncLimiter
 from openai.error import RateLimitError
 
-
 import config
 from datebase import update_model_usage
 
@@ -60,14 +59,16 @@ async def agpt(**params):
                     trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
                     params['messages']=[msg for msg in params['messages'] if msg['content']]
-                    user_id = params['user_id']
-                    params.pop('user_id')
+                    user_id=None
+                    if 'user_id' in params:
+                        user_id = params['user_id']
+                        params.pop('user_id')
                     result = await openai.ChatCompletion.acreate(**params)
-
-                    update_model_usage(user_id, params['model'], result['usage']['prompt_tokens'], result['usage']['completion_tokens'])
+                    if user_id:
+                        update_model_usage(user_id, params['model'], result['usage']['prompt_tokens'], result['usage']['completion_tokens'])
                     return result
                 except RateLimitError as error:
-                    if error.error['message']=='You exceeded your current quota, please check your plan and billing details.':
+                    if 'billing details' in error.error['message']:
                         result={'choices':[{'message':{'content':'Простите, но у меня закончились деньги чтобы общаться с вами. Как только за меня заплатят я заработaю.'}}]}
                         return result
                         #raise error
