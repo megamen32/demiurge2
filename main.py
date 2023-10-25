@@ -477,10 +477,10 @@ async def toggle_function_mode(callback_query: types.CallbackQuery):
     # Ответить на callback_query, чтобы убрать кружок загрузки на кнопке
 
 @dp.message_handler(commands=['tts'])
-async def switch_gpt4_mode(message: types.Message):
+async def switch_tts_mode(message: types.Message):
     # Получение данных пользователя
     user_data, chat_id = await get_chat_data(message)
-    user,_=User.get_or_create(user_id=message.from_user.id)
+
 
     use_tts = user_data.get('tts', config.TTS )
 
@@ -493,6 +493,23 @@ async def switch_gpt4_mode(message: types.Message):
 
     # Отправка сообщения пользователю об изменении режима
     await message.reply(f"Text to speach mode is now {'ON' if use_tts else 'OFF'}.")
+@dp.message_handler(commands=['mute'])
+async def switch_mute_mode(message: types.Message):
+    # Получение данных пользователя
+    user_data, chat_id = await get_chat_data(message)
+
+
+    use_tts = user_data.get('mute', False )
+
+    # Переключение режима use_gpt_4
+    use_tts = not use_tts
+
+    # Сохранение нового значения в данных пользователя
+    user_data['mute'] = use_tts
+    await dp.storage.set_data(chat=chat_id, data=user_data)
+
+    # Отправка сообщения пользователю об изменении режима
+    await message.reply(f"Mute mode is now {'ON' if use_tts else 'OFF'}.")
 
 
 @dp.message_handler(commands=['gpt4'])
@@ -786,6 +803,8 @@ async def handle_message(message: types.Message, role='user',edit=False):
     global processing_tasks
 
     user_data, chat_id = await get_chat_data(message)
+    if user_data.get('mute',False):
+        return None
     async with managing_dialog_locks[chat_id]:
 
         # Получите текущую задачу обработки для этого пользователя (если есть)
@@ -896,6 +915,9 @@ async def process_function_call(function_name, function_args, message, step=0):
 
 async def wait_and_process_messages(chat_id, message, user_data, role,edit=False):
     global dialog_locks
+    user_data, chat_id = await get_chat_data(message)
+    if user_data.get('mute',False):
+        return
     response_text=None
     cancel_event=asyncio.Event()
     while True:

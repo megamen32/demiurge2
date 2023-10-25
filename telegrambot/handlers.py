@@ -3,6 +3,7 @@ import pprint
 from datetime import datetime
 
 from aiogram import types, Bot, Dispatcher
+from aiogram.dispatcher.handler import CancelHandler
 from aiogram.dispatcher.middlewares import BaseMiddleware
 
 import config
@@ -15,6 +16,7 @@ class MessageLoggingMiddleware(BaseMiddleware):
     async def on_pre_process_message(self, message: types.Message, data: dict):
         user_data,user_id=await tgbot.get_chat_data(message)
         user_data['last_message_time'] = datetime.now().timestamp()
+
         create_user(message)
         await dp.storage.set_data(chat=user_id,data=user_data)
         if message.reply_to_message and message.reply_to_message.text:
@@ -28,6 +30,8 @@ class MessageLoggingMiddleware(BaseMiddleware):
             if message.get_command(True) not in ['history']:
                 await tgbot.dialog_append(message,message.text)
         print(message.text or message.caption,user_id)
+        if user_data.get('mute',None) and '/mute' not in message.text:
+            raise CancelHandler()
         # Продолжаем обработку следующими middleware и обработчиками
 
 def create_user( message):
