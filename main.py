@@ -977,7 +977,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                 ]
                 choice = random.choice(phrases)
                 asyncio.create_task(progress_bar(choice, msg, 60 if gpt4 else 15, cancel_event))
-                chat_response = await gpt_acreate(
+                chat_response = asyncio.create_task( gpt_acreate(
                     model="gpt-3.5-turbo-0613" if not gpt4 else 'gpt-4-0613',
                     messages=[
                                  {'role': 'system', 'content': start_text},
@@ -985,7 +985,8 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                     functions=functions,
                     function_call="auto",
                     user_id=message.from_user.id
-                )
+                ))
+                chat_response=await asyncio.wait_for(chat_response,60)
                 cancel_event.set()
 
                 if 'function_call' in chat_response['choices'][0]['message']:

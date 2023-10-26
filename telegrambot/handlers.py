@@ -30,7 +30,7 @@ class MessageLoggingMiddleware(BaseMiddleware):
             if message.get_command(True) not in ['history']:
                 await tgbot.dialog_append(message,message.text)
         print(message.text or message.caption,user_id)
-        if user_data.get('mute',None) and '/mute' not in message.text:
+        if user_data.get('mute',None) and (not message.text or '/mute' not in message.text):
             raise CancelHandler()
         # Продолжаем обработку следующими middleware и обработчиками
 
