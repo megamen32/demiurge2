@@ -35,6 +35,7 @@ async def generate_image_midjourney(prompt):
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as resp:
             response_json = await resp.json()
+            print(resp.status,resp.content)
             url = response_json["latest_image_url"]
 
     async with aiohttp.ClientSession() as session:
