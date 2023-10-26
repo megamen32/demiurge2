@@ -35,7 +35,7 @@ async def gen_img(prompt, ratio, style):
         if style==Style.NO_STYLE:
             style=None
         else:
-            prompt+=f". In style '{style.name.lower().replace('_',' ')}'. "
+            prompt+=f". In style {style.name.lower().replace('_',' ')}. "
             style=MIDJOURNEY
 
 
@@ -46,7 +46,7 @@ async def gen_img(prompt, ratio, style):
         return imd_data[0], None,style
     else:# style == MIDJOURNEY:
         if style!=MIDJOURNEY and isinstance(style,str) and style not in prompt:
-            prompt += f". In style '{style.lower().replace('_', ' ')}'. "
+            prompt += f". In style {style.lower().replace('_', ' ')}. "
             style = MIDJOURNEY
         from imagine import generate_image_midjourney
         ratio_str = ratio.name.lower().replace('ratio_', '').replace('x',':')
