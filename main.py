@@ -9,6 +9,7 @@ import pprint
 import random
 import subprocess
 import tempfile
+import time
 import traceback
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -16,6 +17,7 @@ from datetime import datetime, timedelta
 from json import JSONDecodeError
 
 import aiogram.utils.exceptions
+import tiktoken
 from gtts import gTTS
 import os
 from aiogram import types, executor
@@ -30,7 +32,7 @@ import config
 import gpt
 import tgbot
 from config import TELEGRAM_BOT_TOKEN, CHATGPT_API_KEY, get_first_word, bot
-from datebase import Prompt, ImageUnstability, User, get_user_balance, PaymentInfo
+from datebase import Prompt, ImageUnstability, User, get_user_balance, PaymentInfo, update_model_usage
 from draw import  draw_and_answer, upscale_image_imagine
 
 # Установите ваш ключ OpenAI
@@ -793,7 +795,7 @@ async def handle_chat_update(message: types.Message):
         {"role": "assistant", "content": f"{ASSISTANT_NAME_SHORT}:{response_text}", 'message_id': msg.message_id})
 
 
-from asyncio import CancelledError
+from asyncio import CancelledError, Future
 
 processing_tasks = {}
 
@@ -907,7 +909,7 @@ async def process_function_call(function_name, function_args, message, step=0):
         response_text = {'code':code,'result':res}
     else:
         raise Exception(f"There is no {function_name} funciton")
-    if response_text is not None and not isinstance(response_text,str):
+    if response_text is not None and not (isinstance(response_text,str) or isinstance(response_text,dict)) :
         response_text = json.dumps(response_text, ensure_ascii=False,default=str)
     return response_text, process_next
 
@@ -976,20 +978,73 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                     "Повышаем концентрацию кода... 🎯"
                 ]
                 choice = random.choice(phrases)
-                asyncio.create_task(progress_bar(choice, msg, 60 if gpt4 else 15, cancel_event))
-                chat_response = asyncio.create_task( gpt_acreate(
-                    model="gpt-3.5-turbo-0613" if not gpt4 else 'gpt-4-0613',
-                    messages=[
-                                 {'role': 'system', 'content': start_text},
-                             ] + user_data['history'],
-                    functions=functions,
-                    function_call="auto",
-                    user_id=message.from_user.id
-                ))
-                chat_response=await asyncio.wait_for(chat_response,60)
-                cancel_event.set()
+                stream=True
+                if not stream:
+                    asyncio.create_task(progress_bar(choice, msg, 120 if gpt4 else 15, cancel_event))
+                gpt_model = "gpt-3.5-turbo-0613" if not gpt4 else 'gpt-4-0613'
+                user_data_history_ = [{'role': 'system', 'content': start_text}, ] + user_data['history']
+                if not stream:
+                    chat_response = asyncio.create_task( gpt_acreate(
+                        model=gpt_model,
+                        messages=user_data_history_,
+                        functions=functions,
+                        function_call="auto",
+                        user_id=message.from_user.id,
+                        stream=stream
+                    ))
+                else:
+                    chat_response = await gpt_acreate(
+                        model=gpt_model,
+                        messages=user_data_history_,
+                        functions=functions,
+                        function_call="auto",
+                        user_id=message.from_user.id,
+                        stream=stream
+                    )
 
-                if 'function_call' in chat_response['choices'][0]['message']:
+                if not stream:
+                    chat_response=await asyncio.wait_for(chat_response,120)
+                    cancel_event.set()
+                else:
+
+                        msg.text=''
+                        chat_response=await chat_response
+                        new_text=''
+                        start_time=time.time()
+                        func_call = {
+                            "name": None,
+                            "arguments": "",
+                        }
+                        async for chunk in chat_response:
+                            delta = chunk['choices'][0]['delta']
+                            if 'content' in chunk['choices'][0]['delta'] and chunk['choices'][0]['delta']['content']:
+                                new_text+=chunk['choices'][0]['delta']['content']
+
+                            elif "function_call" in delta:
+                                if "name" in delta.function_call:
+                                    func_call["name"] = delta.function_call["name"]
+                                    new_text+=func_call["name"]
+                                if "arguments" in delta.function_call:
+                                    func_call["arguments"] += delta.function_call["arguments"]
+                                    new_text+=delta.function_call["arguments"].replace(r'\n','\n\n')
+                            if time.time() - start_time >= 1:
+                                # cancel_event.set()
+                                msg = await msg.edit_text(msg.text + new_text)
+                                new_text = ''
+                                start_time = time.time()
+
+
+                        chat_response=chunk
+                        enc = tiktoken.encoding_for_model(gpt_model)
+
+                        update_model_usage(message.from_user.id, gpt_model, gpt.num_tokens_from_messages(user_data_history_),len(enc.encode(msg.text+new_text)))
+                        if not func_call['name']:
+                            chat_response['choices'][0]['message']={'content':msg.text+new_text}
+                        else:
+                            chat_response['choices'][0]['message']={'function_call':func_call}
+
+
+                if 'message' in chat_response['choices'][0] and 'function_call' in chat_response['choices'][0]['message'] :
                     function_call = chat_response['choices'][0]['message']['function_call']
                     try:
                         response_text, process_next = await process_function_call(function_call['name'],
@@ -999,7 +1054,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                         process_next=False
 
 
-                    formatted_function_call =function_call["arguments"]
+                    formatted_function_call =function_call["arguments"].replace(r'\n','\n')
                     if process_next:
                         message.text = response_text
                         role = config.Role_ASSISTANT
@@ -1010,7 +1065,7 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                             await bot.edit_message_text(chat_id=msg.chat.id,message_id=msg.message_id,text=ans[:4096])
                             msg = await message.reply('...')
                         continue
-                    response_text = None#f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
+                    response_text = f'{function_call["name"]}(\n{formatted_function_call}\n) => \n{response_text if response_text else ""}'
                     if function_call["name"] in ['draw']:
                         await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
 
@@ -1028,6 +1083,8 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
     except CancelledError:
         cancel_event.set()
         await bot.delete_message(msg.chat.id, msg.message_id,thread_id=msg.message_thread_id)
+    except aiogram.utils.exceptions.MessageNotModified:
+        pass
     except:
         cancel_event.set()
         traceback.print_exc()
