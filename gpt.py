@@ -145,7 +145,7 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
         for key, value in message.items():
             if key in ['role','content']:
                 num_tokens += len(encoding.encode(value))
-            if key in ["name",'role']:
+            if key in ["name"]:
                 num_tokens += tokens_per_name
     num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
     return num_tokens
