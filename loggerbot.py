@@ -12,6 +12,10 @@ class LoggingBot(Bot):
     async def send_message(self, ignore=False,*args, **kwargs):
         # Здесь вы можете добавить предварительную обработку, если это необходимо
         kwargs['text']=kwargs['text'][:4000]
+        from tgbot import get_chat_data, get_storage_from_chat
+        user_data,chat_id= await get_storage_from_chat(kwargs['chat_id'],kwargs.get('thread_id',None))
+        if user_data.get('mute',False):
+            print(f'skiping args[0] cause muted')
         result = await super().send_message(*args, **kwargs)
         # Здесь мы добавим постобработку - заносим сообщение в память
         if result.message_thread_id and result.message_id==result.message_thread_id+1:

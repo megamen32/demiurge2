@@ -1,5 +1,6 @@
 # Настройка глобальной переменной для очереди
 import asyncio
+import json
 import logging
 import re
 from asyncio import InvalidStateError
@@ -59,7 +60,12 @@ async def agpt(**params):
                     # Ограничьте историю MAX_HISTORY сообщениями
                     trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
-                    params['messages']=[msg for msg in params['messages'] if msg['content']]
+                    params['messages'] = []
+                    for msg in params['messages']:
+                        if msg['content']:
+                            if not isinstance(msg['content'], str):
+                                msg['content']=json.dumps(msg['content'])
+                            params['messages'].append(msg)
                     user_id=None
                     if 'user_id' in params:
                         user_id = params['user_id']

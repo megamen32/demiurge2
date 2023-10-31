@@ -222,6 +222,8 @@ async def handle_photo(message: types.Message):
     try:
 
         user_data, chat_id = await get_chat_data(message)
+        if user_data.get('mute',False):
+            return
 
         # Получите файл голосового сообщения
         file_id = message.photo[-1].file_id
@@ -545,6 +547,8 @@ async def handle_edited_message(message: types.Message):
     try:
 
         user_data, chat_id = await get_chat_data(message)
+        if user_data.get('mute',False):
+            return
 
         if 'history' not in user_data:
             user_data['history'] = []
@@ -909,7 +913,7 @@ async def process_function_call(function_name, function_args, message, step=0):
         response_text = {'code':code,'result':res}
     else:
         raise Exception(f"There is no {function_name} funciton")
-    if response_text is not None and not (isinstance(response_text,str) or isinstance(response_text,dict)) :
+    if response_text is not None and not isinstance(response_text,str):
         response_text = json.dumps(response_text, ensure_ascii=False,default=str)
     return response_text, process_next
 
@@ -1027,9 +1031,12 @@ async def wait_and_process_messages(chat_id, message, user_data, role,edit=False
                                 if "arguments" in delta.function_call:
                                     func_call["arguments"] += delta.function_call["arguments"]
                                     new_text+=delta.function_call["arguments"].replace(r'\n','\n\n')
-                            if time.time() - start_time >= 1:
+                            if time.time() - start_time >= 5:
                                 # cancel_event.set()
-                                msg = await msg.edit_text(msg.text + new_text)
+                                try:
+                                    msg = await msg.edit_text(msg.text + new_text)
+                                except RetryAfter as e:
+                                    await asyncio.sleep(e.timeout)
                                 new_text = ''
                                 start_time = time.time()
 

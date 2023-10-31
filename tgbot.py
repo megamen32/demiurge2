@@ -18,7 +18,7 @@ async def get_storage_from_chat(chat_id, thread_id=None):
         user_data['history'] =[]
     return user_data, storage_id
 async def get_chat_data(message:types.Message):
-    thread_id = message.message_thread_id
+    thread_id = message.message_thread_id if message.is_topic_message else None
     user_id = message.chat.id
     return await get_storage_from_chat(user_id, thread_id)
 
