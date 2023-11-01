@@ -31,8 +31,10 @@ class MessageLoggingMiddleware(BaseMiddleware):
                 await tgbot.dialog_append(message,message.text)
         print(message.text or message.caption,user_id)
         is_anti_mute=False
-        if message.text:
+        if message.text :
             is_anti_mute = '/mute'  in message.text
+        if message.caption:
+            is_anti_mute='mute' in message.caption or is_anti_mute
         if user_data.get('mute',None) and not is_anti_mute:
             raise CancelHandler()
         # Продолжаем обработку следующими middleware и обработчиками

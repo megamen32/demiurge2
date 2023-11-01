@@ -60,12 +60,13 @@ async def agpt(**params):
                     # Ограничьте историю MAX_HISTORY сообщениями
                     trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
-                    params['messages'] = []
+                    new_dict= {'messages':[]}
                     for msg in params['messages']:
                         if msg['content']:
                             if not isinstance(msg['content'], str):
                                 msg['content']=json.dumps(msg['content'])
-                            params['messages'].append(msg)
+                            new_dict['messages'].append(msg)
+                    params['messages']=new_dict['messages']
                     user_id=None
                     if 'user_id' in params:
                         user_id = params['user_id']
