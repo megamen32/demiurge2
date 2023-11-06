@@ -45,8 +45,9 @@ async def gen_img(prompt, ratio, style):
         imd_data = await agenerate_image_stability(prompt, style)
         return imd_data[0], None,style
     else:# style == MIDJOURNEY:
-        if style!=MIDJOURNEY and isinstance(style,str) and style not in prompt:
-            prompt += f". {style.lower().replace('_', ' ').replace(' v2','')} style"
+        if style!=MIDJOURNEY and isinstance(style,str) :
+            if 'style' not in prompt:
+                prompt += f". {style.lower().replace('_', ' ').replace(' v2','')} style"
             style = MIDJOURNEY
         from imagine import generate_image_midjourney
         ratio_str = ratio.name.lower().replace('ratio_', '').replace('x',':')
@@ -283,11 +284,11 @@ async def draw_and_answer(prompt, chat_id, reply_to_id,user_id):
         photo = None
         start_index=user_data.get('style_start_index', 0)
         kb :types.InlineKeyboardMarkup= create_style_keyboard(prompt,start_index)
-        if isinstance(style, Style):
+        if False and isinstance(style, Style):
             photo = await bot.send_photo(chat_id=chat_id, photo=io.BytesIO(img_file), caption=f'{prompt}',
                                          reply_to_message_id=reply_to_id)
             img_file = await upscale_image_imagine(img_file)
-        elif style == MIDJOURNEY:
+        else :
             img_db = ImageMidjourney.create(prompt=prompt, url=url)
 
             btns = [InlineKeyboardButton(text=f"U {_ + 1}", callback_data=f"imagine_{_ + 1}_{img_db.id}") for _ in
