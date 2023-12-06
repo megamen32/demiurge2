@@ -1,12 +1,13 @@
 import asyncio
 import subprocess
 
+import openai
 from aiogram.types import BotCommand
 from aiogram.utils import executor
 
 from config import dp, bot
 from datebase import ImageUnstability, ImageMidjourney, Prompt, User, ModelUsage, PaymentInfo
-from gpt import process_queue
+from gpt import process_queue, set_random_api_key, get_sessiong
 from main import  check_inactive_users
 from memory import mem_init
 from telegrambot.handlers import MessageLoggingMiddleware
@@ -15,6 +16,7 @@ async def on_startup_disp(dp):
     asyncio.create_task(process_queue())
     asyncio.create_task(check_inactive_users())
     asyncio.create_task(mem_init())
+    await set_random_api_key()
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
         BotCommand("gpt4", "turn gpt4 on or off"),
@@ -42,7 +44,11 @@ if __name__ == '__main__':
     if not ModelUsage.table_exists(): ModelUsage.create_table()
     if not PaymentInfo.table_exists(): PaymentInfo.create_table()
     #start Midjourney-Web-API/app.py
-    subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
 
+
+
+    subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
+    #import socks
+    #socks.set_default_proxy('HTTP','16.203.28.43',80)
     dp.middleware.setup(MessageLoggingMiddleware())
     executor.start_polling(dp, on_startup=on_startup_disp)

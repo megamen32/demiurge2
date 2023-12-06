@@ -1,20 +1,17 @@
-import random
-
-from aiogram import Bot, Dispatcher
+from aiogram import Dispatcher
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from decouple import config
-import openai
 
 from imaginepy import Ratio
+from requests.auth import HTTPBasicAuth
+
 
 from loggerbot import LoggingBot
 
 TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN')
 CHATGPT_API_KEY = config('CHATGPT_API_KEY')
 CHATGPT_API_KEY2 = config('CHATGPT_API_KEY2')
-def set_random_api_key():
-    openai.api_key = random.choice([CHATGPT_API_KEY])
-set_random_api_key()
+
 
 # Создайте экземпляры бота и диспетчера
 bot = LoggingBot(token=TELEGRAM_BOT_TOKEN)
@@ -27,6 +24,8 @@ from yookassa import Configuration
 Configuration.configure( config('YOOMONEY_ACCOUNT_ID'), config('YOOMONEY_SECRET_KEY'))
 
 
+SERVER_URL=config('SERVER_URL')
+AUTH=HTTPBasicAuth(config("USERNAME"),config("PASSWORD"))
 
 import logging
 
@@ -62,7 +61,6 @@ def get_first_word(string):
 
 def get_styles():
     # Ваш код, который возвращает список из 70 стилей
-    from imaginepy import Style
     styles = ['CREATIVE','ANIME','NEO FAUVISM','SURREALISM','LOGO','CYBERPUNK','LANDSCAPE','ARCHITECTURE','RENDER','VIBRANT','MYSTICAL','CINEMATIC RENDER','ILLUSTRATION','KAWAII CHIBI','PRODUCT PHOTOGRAPHY','CHROMATIC','PAINTING','REALISTIC']
     # Добавление стиля 'MIDJOURNEY', если он не включен в список
     if 'MIDJOURNEY' not in styles:

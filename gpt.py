@@ -2,16 +2,23 @@
 import asyncio
 import json
 import logging
+import os
+import random
 import re
+import socket
 from asyncio import InvalidStateError
 from collections import defaultdict
 
+import aiohttp
 import openai
+import requests
+import socks
 import tiktoken
 from aiolimiter import AsyncLimiter
 from openai.error import RateLimitError
 
 import config
+from config import CHATGPT_API_KEY
 from datebase import update_model_usage
 
 request_queue = asyncio.Queue()
@@ -56,7 +63,7 @@ async def agpt(**params):
                 params.pop('function_call')
             async with rate_limiter[params['model']]:
                 try:
-                    config.set_random_api_key()
+                    #set_random_api_key()
                     # Ограничьте историю MAX_HISTORY сообщениями
                     trim(params)
                     params['messages'] = [{"role": item["role"], "content": item["content"], **({'name': item['name']} if 'name' in item  else {})} for item in params['messages']]
@@ -71,7 +78,7 @@ async def agpt(**params):
                     if 'user_id' in params:
                         user_id = params['user_id']
                         params.pop('user_id')
-
+                    openai.aiosession.set(await get_sessiong())
                     result = await openai.ChatCompletion.acreate(**params)
                     if params.get('stream',None):
                         return result
@@ -172,11 +179,11 @@ def count_tokens(history):
     global tokenizer
     if tokenizer is None:
         from transformers import GPT2Tokenizer
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
     tokens=0
     for msg in history:
-        tokens+=len(tokenizer.encode(str(msg['content'])))
+        tokens+=len(encoding.encode(str(msg['content'])))
     return tokens
 
 
@@ -220,3 +227,51 @@ async def summary_gpt(history_for_openai,user_id):
     )
     summary = chat_response['choices'][0]['message']['content']
     return summary
+
+async def check_socks5_proxy(ip,proxy_port,proxy_user=None,proxy_pass=None):
+    response = requests.get('http://httpbin.org/ip',proxies={'http':f'{ip}:{proxy_port}'}, timeout=10)
+    print(response.text)
+    from openai.api_resources import completion
+
+    # Создание сессии requests с настройками прокси
+    import os
+    session= await aiohttp.ClientSession(proxy=f'{proxy_user}:{proxy_port}').__aenter__()
+    openai.aiosession.set(session)
+    #os.environ['https_proxy'] = 'http://20.111.54.16:80'
+
+    # Теперь вы можете делать запросы к OpenAI, которые будут использовать прокси
+
+    try:
+        response = requests.get('http://httpbin.org/ip', timeout=10)
+        if response.status_code == 200:
+            print(response.text)
+            return True
+    except Exception as e:
+        print(f"Error with {ip}: {e}")
+    return False
+
+async def set_random_api_key():
+    import get_proxy
+    prox='20.111.54.16:80'
+    ip,port=prox.split(':')
+    port=int(port)
+    #f=await check_socks5_proxy(ip,port)
+    #print('proxy is working:',f)
+
+
+async def get_sessiong():
+    #os.environ['https_proxy'] = 'http://20.111.54.16:80'
+    #os.environ['http_proxy'] = 'http://20.111.54.16:80'
+    from aiohttp_proxy import ProxyConnector, ProxyType
+
+    connector = ProxyConnector.from_url('socks5://user109086:ku4sz6@146.247.105.173:17867')
+    ### or use ProxyConnector constructor
+    # connector = ProxyConnector(
+    #     proxy_type=ProxyType.SOCKS5,
+    #     host='127.0.0.1',
+    #     port=1080,
+    #     username='user',
+    #     password='password',
+    #     rdns=True
+    # )
+    return   await  aiohttp.ClientSession(connector=connector).__aenter__()
