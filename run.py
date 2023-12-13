@@ -48,7 +48,7 @@ if __name__ == '__main__':
     proxy = 'http://user109086:ku4sz6@146.247.105.173:7867'
     openai.proxy = {'http': proxy, 'https': proxy}
 
-    subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
+    subprocess.Popen(["venv/bin/python", "Midjourney-Web-API/app.py"])
     #import socks
     #socks.set_default_proxy('HTTP','16.203.28.43',80)
     dp.middleware.setup(MessageLoggingMiddleware())
