@@ -45,7 +45,8 @@ if __name__ == '__main__':
     if not PaymentInfo.table_exists(): PaymentInfo.create_table()
     #start Midjourney-Web-API/app.py
 
-
+    proxy = 'http://user109086:ku4sz6@146.247.105.173:7867'
+    openai.proxy = {'http': proxy, 'https': proxy}
 
     subprocess.Popen(["python", "Midjourney-Web-API/app.py"])
     #import socks
