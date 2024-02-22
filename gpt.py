@@ -250,21 +250,13 @@ async def check_socks5_proxy(ip,proxy_port,proxy_user=None,proxy_pass=None):
         print(f"Error with {ip}: {e}")
     return False
 
-async def set_random_api_key():
-    import get_proxy
-    prox='20.111.54.16:80'
-    ip,port=prox.split(':')
-    port=int(port)
-    #f=await check_socks5_proxy(ip,port)
-    #print('proxy is working:',f)
-
 
 async def get_sessiong():
     #os.environ['https_proxy'] = 'http://20.111.54.16:80'
     #os.environ['http_proxy'] = 'http://20.111.54.16:80'
     from aiohttp_proxy import ProxyConnector, ProxyType
 
-    connector = ProxyConnector.from_url('socks5://user109086:ku4sz6@146.247.105.173:17867')
+    connector = ProxyConnector.from_url(config.proxy)
     ### or use ProxyConnector constructor
     # connector = ProxyConnector(
     #     proxy_type=ProxyType.SOCKS5,

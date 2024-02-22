@@ -1,3 +1,5 @@
+import httpx
+import openai.version
 from aiogram import Dispatcher
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from decouple import config
@@ -22,7 +24,10 @@ useGPT4=False
 USE_API=True
 from yookassa import Configuration
 Configuration.configure( config('YOOMONEY_ACCOUNT_ID'), config('YOOMONEY_SECRET_KEY'))
-
+proxy='http://168.80.203.204:8000'
+if int(openai.version.VERSION[0])>0:
+    from openai import AsyncOpenAI
+    openai_client=AsyncOpenAI(api_key=CHATGPT_API_KEY,http_client=httpx.AsyncClient(proxies={'http://':proxy,'https://':proxy}))
 
 SERVER_URL=config('SERVER_URL')
 AUTH=HTTPBasicAuth(config("USERNAME"),config("PASSWORD"))

@@ -7,7 +7,7 @@ from aiogram.utils import executor
 
 from config import dp, bot
 from datebase import ImageUnstability, ImageMidjourney, Prompt, User, ModelUsage, PaymentInfo
-from gpt import process_queue, set_random_api_key, get_sessiong
+from gpt import process_queue, get_sessiong
 from main import  check_inactive_users
 from memory import mem_init
 from telegrambot.handlers import MessageLoggingMiddleware
@@ -16,7 +16,7 @@ async def on_startup_disp(dp):
     asyncio.create_task(process_queue())
     asyncio.create_task(check_inactive_users())
     asyncio.create_task(mem_init())
-    await set_random_api_key()
+
     await bot.set_my_commands([
         BotCommand("history", "Показать историю диалога"),
         BotCommand("gpt4", "turn gpt4 on or off"),
@@ -45,9 +45,9 @@ if __name__ == '__main__':
     if not PaymentInfo.table_exists(): PaymentInfo.create_table()
     #start Midjourney-Web-API/app.py
 
-    proxy = 'http://user109086:ku4sz6@146.247.105.173:7867'
-    openai.proxy = {'http': proxy, 'https': proxy}
-
+    proxy = 'https://168.80.203.204:8000'
+    openai.proxy = proxy
+    openai.log='debug'
     subprocess.Popen(["venv/bin/python", "Midjourney-Web-API/app.py"])
     #import socks
     #socks.set_default_proxy('HTTP','16.203.28.43',80)
