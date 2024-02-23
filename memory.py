@@ -4,14 +4,10 @@ import os
 import traceback
 
 import aiogram.types
-
-
-
-
-
+from llama_index import ServiceContext
 
 from config import bot, dp
-
+import config
 
 #from read_all_files import read_file
 
@@ -45,7 +41,7 @@ def smart_youtube_reader(video_url,query_text,model='gpt-3.5-turbo'):
     from llama_index.llms import OpenAI
     from llama_index import SimpleDirectoryReader, ServiceContext, SummaryIndex
     reader=YoutubeTranscriptReader()
-    documents=reader.load_data([video_url])
+    documents=reader.load_data([video_url]) #   srt = YouTubeTranscriptApi.get_transcript(video_id,languages=['ru','en']) in
     #vector_index = VectorStoreIndex.from_documents(documents)
     llm = OpenAI(temperature=0, model=model)
     service_context = ServiceContext.from_defaults(llm=llm)

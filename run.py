@@ -45,7 +45,7 @@ if __name__ == '__main__':
     if not PaymentInfo.table_exists(): PaymentInfo.create_table()
     #start Midjourney-Web-API/app.py
 
-    proxy = 'https://168.80.203.204:8000'
+    proxy = 'http://168.80.203.204:8000'
     openai.proxy = proxy
     openai.log='debug'
     subprocess.Popen(["venv/bin/python", "Midjourney-Web-API/app.py"])

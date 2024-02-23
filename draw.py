@@ -21,7 +21,7 @@ from aiogram import types
 
 from config import dp, bot
 from datebase import Prompt, ImageMidjourney
-from gpt import gpt_acreate
+from gpt import gpt_acreate, get_sessiong
 from tgbot import get_chat_data, get_storage_from_chat, dialog_append, dialog_append_raw
 
 MIDJOURNEY = 'MIDJOURNEY'
@@ -262,11 +262,15 @@ async def draw_and_answer(prompt, chat_id, reply_to_id,user_id):
     try:
         if re.match('[а-яА-Я]+', prompt):
             prompt = translate_promt(prompt)
+        is_sexual = False
         if config.USE_API:
-            moderate = await openai.Moderation.acreate(prompt)
-            is_sexual = moderate['results'][0]['categories']['sexual']
-        else:
-            is_sexual = False
+            try:
+                openai.aiosession.set(await get_sessiong())
+                moderate = await openai.Moderation.acreate(prompt)
+                is_sexual = moderate['results'][0]['categories']['sexual']
+            except:
+                traceback.print_exc()
+
         if is_sexual:
             style = UNSTABILITY
         else:
